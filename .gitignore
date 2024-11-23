@@ -1,0 +1,72 @@
+# Byte-compiled / optimized / DLL files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.sqlite3
+
+# Django settings
+*.env
+*.local_settings.py
+
+# Migrations
+*/migrations/*.py
+!*/migrations/__init__.py
+
+# Media and Static files
+/media/
+**/staticfiles/
+**/static/
+
+# Logs
+*.log
+logs/
+debug.log
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Ignore IDE/editor specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Testing
+.pytest_cache/
+coverage.xml
+*.cover
+*.coverage
+nosetests.xml
+test-results/
+htmlcov/
+
+# Ignore build files
+*.egg-info/
+dist/
+build/
+
+# Ignore database backups
+*.bak
+*.dump
+*.sql
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+*.orig
+
+# Ignore dependencies installed locally
+*.lock
+pip-log.txt
+
+# Ignore deployment files
+*.pem
+*.key
+secrets.json

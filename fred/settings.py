@@ -107,11 +107,12 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
-# Enable CORS for your frontend
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # Your Next.js frontend URL
-]
+# # Enable CORS for your frontend
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",  # Your Next.js frontend URL
+# ]
 
+CORS_ALLOW_ALL_ORIGINS = True
 
 WSGI_APPLICATION = 'fred.wsgi.application'
 

@@ -4,7 +4,7 @@ from .models import Service
 class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
-        fields = '__all__'
+        fields = ['id', 'user', 'title', 'description', 'cost', 'delivery_time', 'support_duration', 'features', 'process_link', 'service_id', 'payment_status', 'order_status']
 
     # Validate `features` to handle both strings and lists
     def validate_features(self, value):

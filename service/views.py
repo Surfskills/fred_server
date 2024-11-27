@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-
+from django.db.models import Q
 from authentication.models import User
 from .models import Service
 from .serializers import ServiceSerializer
@@ -17,25 +17,50 @@ class ServiceListView(APIView):
         serializer = ServiceSerializer(services, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
 class ServiceCreateView(APIView):
     permission_classes = [IsAuthenticated]
-    
+
     def post(self, request):
         data = request.data.copy()
 
-        # Map `user_id` to `user`
-        user_id = data.pop('user_id', None)
-        user = User.objects.filter(id=user_id).first()
-        if not user:
-            return Response({"error": "Invalid user ID."}, status=status.HTTP_400_BAD_REQUEST)
+        # Extract user and other fields
+        data['user'] = request.user.id
+        user = request.user
+        service_id = data.get('service_id')
+        title = data.get('title')
 
-        data['user'] = user.id  # Attach the user to the service
+        # Validate if service with the same service_id exists
+        existing_service = Service.objects.filter(service_id=service_id).first()
+        if existing_service:
+            return Response(
+                {
+                    "message": "Service with this service ID already exists.",
+                    "service_id": existing_service.id,
+                    "service_details": ServiceSerializer(existing_service).data,
+                },
+                status=status.HTTP_200_OK,
+            )
 
+        # Check if a service with the same title and user exists
+        existing_title_service = Service.objects.filter(user=user, title=title).first()
+        if existing_title_service:
+            return Response(
+                {
+                    "message": "Service with this title already exists.",
+                    "service_id": existing_title_service.id,
+                    "service_details": ServiceSerializer(existing_title_service).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # Proceed to create a new service
         serializer = ServiceSerializer(data=data)
         if serializer.is_valid():
-            serializer.save(user=user)  # Save with the user
+            serializer.save(user=user)  # Attach the user
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+        # Handle validation errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

@@ -4,19 +4,14 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import login, logout
-
+from django.contrib.auth import login, authenticate
+from django.contrib.auth import logout as django_logout
+from .serializers import SignInSerializer, SignUpSerializer, UserSerializer
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework import permissions
 
-from django.contrib.auth import authenticate
-from rest_framework import status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import SignInSerializer, SignUpSerializer, UserSerializer
-
+# Token Authentication and Refresh token API view
 class TokenAPIView(APIView):
     def post(self, request):
         # Get username and password from the request
@@ -30,6 +25,7 @@ class TokenAPIView(APIView):
             # If user is authenticated, generate JWT tokens
             refresh = RefreshToken.for_user(user)
             access_token = refresh.access_token
+
             # Optionally, serialize user data
             user_data = UserSerializer(user).data
 
@@ -42,6 +38,7 @@ class TokenAPIView(APIView):
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
 
 
+# Unified authentication view (handles both signup and signin)
 @method_decorator(csrf_exempt, name='dispatch')
 class UnifiedAuthView(APIView):
     permission_classes = [AllowAny]
@@ -98,27 +95,29 @@ class UnifiedAuthView(APIView):
                 }, status=status.HTTP_401_UNAUTHORIZED)
 
 
+# Logout view to blacklist the refresh token and log out the user
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        logout(request)  # End the Django session for the user
-        return Response({
-            'message': 'Successfully logged out'
-        }, status=status.HTTP_200_OK)
-    
+        """
+        Log out the user and blacklist the refresh token.
+        """
+        # Get the refresh token from the request (this is typically provided as part of the Authorization header or a separate field)
+        refresh_token = request.data.get('refresh')  # assuming the token is passed in the request body
 
-class SessionAPIView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+        if refresh_token:
+            try:
+                # Instantiate the RefreshToken from the token string
+                token = RefreshToken(refresh_token)
 
-    def get(self, request):
-        user = request.user
-        return Response({
-            'user': {
-                'id': user.id,
+                # Blacklist the refresh token
+                token.blacklist()
 
-                'email': user.email,
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-            },
-            'jwt_token': request.auth  # Include the JWT token if needed
-        })
+        # Django session logout
+        django_logout(request)
+
+        return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)

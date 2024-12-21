@@ -24,7 +24,7 @@ print("DATABASE_URL: ", os.environ.get('DATABASE_URL'))
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 # Base directory setup
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 
@@ -142,9 +142,10 @@ WSGI_APPLICATION = 'fred.wsgi.application'
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',  # Use the / operator with Path object
 #     }
 # }
+
 
 
 # Password validation

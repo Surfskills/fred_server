@@ -1,7 +1,6 @@
 from django.db import models
 from django.conf import settings
 
-
 class Service(models.Model):
     # User associated with the service
     user = models.ForeignKey(
@@ -14,6 +13,11 @@ class Service(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
     cost = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    # New fields for sizes and phone number
+    sizes = models.JSONField(default=dict, null=True, blank=True)  # Optional field
+    phone_number = models.CharField(max_length=20, null=True, blank=True)  # Optional field
+    
     delivery_time = models.CharField(max_length=100)  # e.g., "2-3 weeks"
     support_duration = models.CharField(max_length=100)  # e.g., "1 month"
     features = models.JSONField()  # Stores an array of features
@@ -56,7 +60,7 @@ class Service(models.Model):
     def save(self, *args, **kwargs):
         # If the payment status is pending, set order status to "waiting_payment"
         if self.payment_status == self.PENDING:
-            self.order_status = 'Proceed_to_pay'
+            self.order_status = 'proceed_to_pay'  # Fixed capitalization to match choices
         super().save(*args, **kwargs)
     
     def __str__(self):

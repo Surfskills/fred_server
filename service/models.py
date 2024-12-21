@@ -38,7 +38,7 @@ class Service(models.Model):
         ('canceled', 'Canceled'),
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
-        ('proceed_to_pay', 'Proceed to pay'),  # New status option
+        ('pay', 'Pay'),  # New status option
     ]
     
     payment_status = models.CharField(
@@ -56,7 +56,7 @@ class Service(models.Model):
     def save(self, *args, **kwargs):
         # If the payment status is pending, set order status to "waiting_payment"
         if self.payment_status == self.PENDING:
-            self.order_status = 'Proceed_to_pay'
+            self.order_status = 'Pay'
         super().save(*args, **kwargs)
     
     def __str__(self):

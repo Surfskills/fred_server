@@ -26,22 +26,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Base directory setup
 # BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Database configuration
-database_url = os.environ.get('DATABASE_URL')
-if database_url:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=database_url,
-            conn_max_age=600,
-            ssl_require=True,
-        )
-    }
-else:
-    raise Exception(
-        'DATABASE_URL environment variable is not set. '
-        'Please set it in your .env file or environment variables.'
-    )
 
+
+# Database configuration
+DATABASES = {
+    'default': dj_database_url.config(
+        default=os.environ.get('DATABASE_URL'),
+        conn_max_age=600,  # connection lifetime in seconds
+        ssl_require=True,  # recommended for production
+    )
+}
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 

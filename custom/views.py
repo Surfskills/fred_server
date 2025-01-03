@@ -29,14 +29,16 @@ class RequestViewSet(viewsets.ViewSet):
             model_type=Value('software', output_field=CharField())
         ).values(
             'id', 'title', 'project_description', 'request_type',
-            'created_at', 'updated_at', 'user_id', 'model_type'
+            'created_at', 'updated_at', 'user_id', 'model_type',
+            'status', 'payment_status', 'order_status'
         )
         
         research_requests = ResearchRequest.objects.filter(user=user).annotate(
             model_type=Value('research', output_field=CharField())
         ).values(
             'id', 'title', 'project_description', 'request_type',
-            'created_at', 'updated_at', 'user_id', 'model_type'
+            'created_at', 'updated_at', 'user_id', 'model_type',
+            'status', 'payment_status', 'order_status'
         )
         
         # Combine querysets using UNION

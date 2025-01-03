@@ -47,15 +47,40 @@ class ResearchRequestSerializer(BaseRequestSerializer):
         validated_data['request_type'] = 'research'
         return super().create(validated_data)
 
-class RequestListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SoftwareRequest  # Using SoftwareRequest as base model
-        fields = ('id', 'title', 'project_description', 'request_type', 'created_at', 'updated_at')
-        read_only_fields = fields
+class RequestListSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    project_description = serializers.CharField()
+    request_type = serializers.CharField()
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
 
     def to_representation(self, instance):
         if isinstance(instance, SoftwareRequest):
-            return SoftwareRequestSerializer(instance).data
+            serializer = SoftwareRequestSerializer(instance)
+            data = serializer.data
+            # Ensure only common fields are returned
+            return {
+                'id': data['id'],
+                'title': data['title'],
+                'project_description': data['project_description'],
+                'request_type': data['request_type'],
+                'created_at': data['created_at'],
+                'updated_at': data['updated_at'],
+                'user': data['user']
+            }
         elif isinstance(instance, ResearchRequest):
-            return ResearchRequestSerializer(instance).data
+            serializer = ResearchRequestSerializer(instance)
+            data = serializer.data
+            # Ensure only common fields are returned
+            return {
+                'id': data['id'],
+                'title': data['title'],
+                'project_description': data['project_description'],
+                'request_type': data['request_type'],
+                'created_at': data['created_at'],
+                'updated_at': data['updated_at'],
+                'user': data['user']
+            }
         return super().to_representation(instance) 

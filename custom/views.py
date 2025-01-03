@@ -30,11 +30,7 @@ class RequestViewSet(viewsets.ViewSet):
         ).values(
             'id', 'title', 'project_description', 'request_type',
             'created_at', 'updated_at', 'user_id', 'model_type',
-            'status', 'payment_status', 'order_status',
-            # Software-specific fields
-            'budget_range', 'timeline', 'frontend_languages',
-            'frontend_frameworks', 'backend_languages', 'backend_frameworks',
-            'ai_languages', 'ai_frameworks'
+            'status', 'payment_status', 'order_status'
         )
         
         research_requests = ResearchRequest.objects.filter(user=user).annotate(
@@ -42,16 +38,7 @@ class RequestViewSet(viewsets.ViewSet):
         ).values(
             'id', 'title', 'project_description', 'request_type',
             'created_at', 'updated_at', 'user_id', 'model_type',
-            'status', 'payment_status', 'order_status',
-            # Research-specific fields
-            'academic_writing_type', 'writing_technique',
-            'research_paper_structure', 'academic_writing_style',
-            'research_paper_writing_process', 'critical_writing_type',
-            'critical_thinking_skill', 'critical_writing_structure',
-            'discussion_type', 'discussion_component',
-            'academic_writing_tool', 'research_paper_database',
-            'plagiarism_checker', 'reference_management_tool',
-            'academic_discussion_type', 'citation_style'
+            'status', 'payment_status', 'order_status'
         )
         
         # Combine querysets using UNION

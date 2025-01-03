@@ -31,9 +31,9 @@ class BaseRequest(models.Model):
 
 class SoftwareRequest(BaseRequest):
     BUDGET_RANGES = (
-        ('low', '$1,000 - $5,000'),
-        ('medium', '$5,000 - $10,000'),
-        ('high', '$10,000+'),
+        ('1000-5000', '$1,000 - $5,000'),
+        ('5000-10000', '$5,000 - $10,000'),
+        ('10000+', '$10,000+'),
     )
 
     budget_range = models.CharField(max_length=20, choices=BUDGET_RANGES)

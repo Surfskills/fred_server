@@ -60,6 +60,17 @@ class RequestViewSet(viewsets.ViewSet):
         for key, value in request.data.items():
             # Convert camelCase to snake_case
             snake_key = ''.join(['_' + c.lower() if c.isupper() else c for c in key]).lstrip('_')
+            
+            # Special handling for budget_range
+            if snake_key == 'budget_range':
+                # Map the frontend budget range to model choices
+                budget_map = {
+                    '1000-5000': 'low',
+                    '5000-10000': 'medium',
+                    '10000+': 'high'
+                }
+                value = budget_map.get(value, value)
+            
             data[snake_key] = value
         
         if request_type.lower() == 'software':

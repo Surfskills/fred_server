@@ -31,6 +31,7 @@ class RequestViewSet(viewsets.ViewSet):
             'id', 'title', 'project_description', 'request_type',
             'created_at', 'updated_at', 'user_id', 'model_type',
             'status', 'payment_status', 'order_status',
+            # Software-specific fields
             'budget_range', 'timeline', 'frontend_languages',
             'frontend_frameworks', 'backend_languages', 'backend_frameworks',
             'ai_languages', 'ai_frameworks'
@@ -42,6 +43,7 @@ class RequestViewSet(viewsets.ViewSet):
             'id', 'title', 'project_description', 'request_type',
             'created_at', 'updated_at', 'user_id', 'model_type',
             'status', 'payment_status', 'order_status',
+            # Research-specific fields
             'academic_writing_type', 'writing_technique',
             'research_paper_structure', 'academic_writing_style',
             'research_paper_writing_process', 'critical_writing_type',

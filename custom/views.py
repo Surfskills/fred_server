@@ -41,22 +41,35 @@ class RequestViewSet(viewsets.ViewSet):
     def create(self, request):
         """Create a new request"""
         print("Received data:", request.data)  # Debug print
-        request_type = request.data.get('request_type')
+        
+        # Check for both camelCase and snake_case versions of request_type
+        request_type = request.data.get('request_type') or request.data.get('requestType')
         
         if not request_type:
             return Response(
-                {'error': 'request_type is required', 'received_data': request.data},
+                {
+                    'error': 'request_type is required',
+                    'received_data': request.data,
+                    'note': 'Please send either request_type or requestType in the request data'
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        if request_type == 'software':
+        # Convert data keys from camelCase to snake_case
+        data = {}
+        for key, value in request.data.items():
+            # Convert camelCase to snake_case
+            snake_key = ''.join(['_' + c.lower() if c.isupper() else c for c in key]).lstrip('_')
+            data[snake_key] = value
+        
+        if request_type.lower() == 'software':
             serializer = SoftwareRequestSerializer(
-                data=request.data,
+                data=data,
                 context={'request': request}
             )
-        elif request_type == 'research':
+        elif request_type.lower() == 'research':
             serializer = ResearchRequestSerializer(
-                data=request.data,
+                data=data,
                 context={'request': request}
             )
         else:
@@ -71,6 +84,8 @@ class RequestViewSet(viewsets.ViewSet):
 
         if serializer.is_valid():
             try:
+                # Set the user before saving
+                serializer.validated_data['user'] = request.user
                 instance = serializer.save()
                 print(f"Created {request_type} request with ID: {instance.id}")  # Debug print
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -89,7 +104,7 @@ class RequestViewSet(viewsets.ViewSet):
             {
                 'error': 'Invalid data provided',
                 'validation_errors': serializer.errors,
-                'received_data': request.data
+                'received_data': data
             },
             status=status.HTTP_400_BAD_REQUEST
         )

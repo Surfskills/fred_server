@@ -10,6 +10,8 @@ from .serializers import SignInSerializer, SignUpSerializer, UserSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from rest_framework_simplejwt.views import TokenVerifyView
+from rest_framework_simplejwt.serializers import TokenVerifySerializer
 
 # Token Authentication and Refresh token API view
 class TokenAPIView(APIView):
@@ -121,3 +123,19 @@ class LogoutView(APIView):
         django_logout(request)
 
         return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+
+
+class VerifyTokenView(TokenVerifyView):
+    """
+    Takes a token and indicates if it is valid.
+    Returns status 200 if token is valid, 401 if not.
+    """
+    serializer_class = TokenVerifySerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            return Response({'detail': 'Token is valid'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'detail': 'Token is invalid or expired'}, status=status.HTTP_401_UNAUTHORIZED)

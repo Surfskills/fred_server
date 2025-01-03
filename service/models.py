@@ -1,12 +1,13 @@
 from django.db import models
 from django.conf import settings
 
+
 class Service(models.Model):
     # User associated with the service
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
-        related_name='authentication_services'
+        related_name='user_services'
     )
     
     # Other fields for service details
@@ -15,8 +16,8 @@ class Service(models.Model):
     cost = models.DecimalField(max_digits=10, decimal_places=2)
     
     # New fields for sizes and phone number
-    sizes = models.JSONField(default=dict, null=True, blank=True)  # Optional field
-    phone_number = models.CharField(max_length=20, null=True, blank=True)  # Optional field
+    sizes = models.JSONField(default=dict)  # Stores size quantities
+    phone_number = models.CharField(max_length=20)  # Stores contact number
     
     delivery_time = models.CharField(max_length=100)  # e.g., "2-3 weeks"
     support_duration = models.CharField(max_length=100)  # e.g., "1 month"

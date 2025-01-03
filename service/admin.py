@@ -3,18 +3,43 @@ from .models import Service
 
 class ServiceAdmin(admin.ModelAdmin):
     # Columns to display in the service list page
-    list_display = ('title', 'user', 'cost', 'delivery_time', 'support_duration', 'service_id',)
+    list_display = (
+        'title', 'user', 'cost', 'delivery_time', 
+        'support_duration', 'service_id', 'phone_number'  # Added phone_number
+    )
     
     # Fields to search by in the admin panel
-    search_fields = ('title', 'service_id', 'user__email')
+    search_fields = (
+        'title', 'service_id', 'user__email', 
+        'phone_number'  # Added phone_number
+    )
     
     # Fields to filter by in the sidebar of the admin list view
-    list_filter = ('user', 'cost', 'delivery_time', 'support_duration')
+    list_filter = (
+        'user', 'cost', 'delivery_time', 
+        'support_duration', 'payment_status', 'order_status'
+    )
     
     # Define the fields to show in the form when adding/editing a service
     fieldsets = (
-        (None, {'fields': ('title', 'description', 'cost', 'delivery_time','payment_status', 'order_status', 'support_duration', 'features', 'process_link', 'service_id')}),
-        ('User Information', {'fields': ('user',)}),
+        ('Basic Information', {
+            'fields': (
+                'title', 'description', 'cost', 
+                'phone_number', 'sizes'  # Added new fields
+            )
+        }),
+        ('Service Details', {
+            'fields': (
+                'delivery_time', 'support_duration', 
+                'features', 'process_link', 'service_id'
+            )
+        }),
+        ('Status Information', {
+            'fields': ('payment_status', 'order_status')
+        }),
+        ('User Information', {
+            'fields': ('user',)
+        }),
     )
 
     # Make the service ID editable on the form

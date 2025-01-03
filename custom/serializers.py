@@ -1,53 +1,61 @@
 from rest_framework import serializers
 from .models import SoftwareRequest, ResearchRequest
 
-class SoftwareRequestSerializer(serializers.ModelSerializer):
+class BaseRequestSerializer(serializers.ModelSerializer):
     class Meta:
+        abstract = True
+        fields = ('id', 'title', 'project_description', 'request_type', 'user', 'created_at', 'updated_at')
+        read_only_fields = ('user', 'created_at', 'updated_at')
+
+    def validate(self, attrs):
+        if not self.context.get('request'):
+            raise serializers.ValidationError("Request context is required")
+        if not self.context['request'].user:
+            raise serializers.ValidationError("User must be authenticated")
+        return attrs
+
+class SoftwareRequestSerializer(BaseRequestSerializer):
+    class Meta(BaseRequestSerializer.Meta):
         model = SoftwareRequest
-        fields = '__all__'
-        read_only_fields = ('user', 'status', 'created_at', 'updated_at')
+        fields = BaseRequestSerializer.Meta.fields + (
+            'budget_range', 'timeline', 'frontend_languages', 
+            'frontend_frameworks', 'backend_languages', 
+            'backend_frameworks', 'ai_languages', 'ai_frameworks'
+        )
 
-class ResearchRequestSerializer(serializers.ModelSerializer):
-    class Meta:
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        validated_data['request_type'] = 'software'
+        return super().create(validated_data)
+
+class ResearchRequestSerializer(BaseRequestSerializer):
+    class Meta(BaseRequestSerializer.Meta):
         model = ResearchRequest
-        fields = '__all__'
-        read_only_fields = ('user', 'status', 'created_at', 'updated_at')
+        fields = BaseRequestSerializer.Meta.fields + (
+            'academic_writing_type', 'writing_technique', 
+            'research_paper_structure', 'academic_writing_style',
+            'research_paper_writing_process', 'critical_writing_type',
+            'critical_thinking_skill', 'critical_writing_structure',
+            'discussion_type', 'discussion_component',
+            'academic_writing_tool', 'research_paper_database',
+            'plagiarism_checker', 'reference_management_tool',
+            'academic_discussion_type', 'citation_style'
+        )
 
-class RequestListSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    request_type = serializers.SerializerMethodField()
-    project_title = serializers.CharField(source='title')
-    project_description = serializers.CharField(source='description')
-    status = serializers.CharField()
-    payment_status = serializers.CharField()
-    order_status = serializers.CharField()
-    created_at = serializers.DateTimeField()
-    updated_at = serializers.DateTimeField()
-    
-    # Software request specific fields
-    budget_range = serializers.CharField(required=False)
-    timeline = serializers.CharField(required=False)
-    frontend_languages = serializers.CharField(required=False)
-    frontend_frameworks = serializers.CharField(required=False)
-    backend_languages = serializers.CharField(required=False)
-    backend_frameworks = serializers.CharField(required=False)
-    ai_languages = serializers.CharField(required=False)
-    ai_frameworks = serializers.CharField(required=False)
-    
-    # Research request specific fields
-    academic_writing_type = serializers.CharField(required=False)
-    writing_technique = serializers.CharField(required=False)
-    research_paper_structure = serializers.CharField(required=False)
-    academic_writing_style = serializers.CharField(required=False)
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        validated_data['request_type'] = 'research'
+        return super().create(validated_data)
 
-    def get_request_type(self, obj):
-        if isinstance(obj, SoftwareRequest):
-            return 'software'
-        elif isinstance(obj, ResearchRequest):
-            return 'research'
-        return None
+class RequestListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SoftwareRequest  # Using SoftwareRequest as base model
+        fields = ('id', 'title', 'project_description', 'request_type', 'created_at', 'updated_at')
+        read_only_fields = fields
 
     def to_representation(self, instance):
-        data = super().to_representation(instance)
-        # Remove None values for fields that don't exist on the specific request type
-        return {k: v for k, v in data.items() if v is not None}
+        if isinstance(instance, SoftwareRequest):
+            return SoftwareRequestSerializer(instance).data
+        elif isinstance(instance, ResearchRequest):
+            return ResearchRequestSerializer(instance).data
+        return super().to_representation(instance) 

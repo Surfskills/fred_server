@@ -5,4 +5,7 @@ from . import views
 router = DefaultRouter()
 router.register(r'', views.RequestViewSet, basename='request')
 
-urlpatterns = router.urls
+urlpatterns = [
+    path('list/', views.RequestViewSet.as_view({'get': 'list'}), name='request-list'),
+    *router.urls
+]

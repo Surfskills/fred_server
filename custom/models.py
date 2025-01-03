@@ -40,7 +40,7 @@ class BaseRequest(models.Model):
         on_delete=models.CASCADE, 
         related_name='%(class)s_requests'
     )
-    project_title = models.CharField(max_length=255)
+    title = models.CharField(max_length=255)
     project_description = models.TextField()
     request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -87,7 +87,7 @@ class SoftwareRequest(BaseRequest):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Software Request: {self.project_title}"
+        return f"Software Request: {self.title}"
 
 class ResearchRequest(BaseRequest):
     academic_writing_type = models.CharField(max_length=100)
@@ -112,4 +112,4 @@ class ResearchRequest(BaseRequest):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Research Request: {self.project_title}"
+        return f"Research Request: {self.title}"

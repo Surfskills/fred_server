@@ -4,7 +4,7 @@ from .models import SoftwareRequest, ResearchRequest
 
 @admin.register(SoftwareRequest)
 class SoftwareRequestAdmin(admin.ModelAdmin):
-    list_display = ('project_title', 'user', 'request_type', 'budget_range', 'status', 'payment_status', 'order_status', 'created_at')
+    list_display = ('title', 'user', 'request_type', 'budget_range', 'status', 'payment_status', 'order_status', 'created_at')
     list_filter = (
         'request_type',
         'status',
@@ -15,7 +15,7 @@ class SoftwareRequestAdmin(admin.ModelAdmin):
         'updated_at'
     )
     search_fields = (
-        'project_title',
+        'title',
         'project_description',
         'user__email',
         'user__username',
@@ -31,7 +31,7 @@ class SoftwareRequestAdmin(admin.ModelAdmin):
         ('Basic Information', {
             'fields': (
                 'user',
-                'project_title',
+                'title',
                 'project_description',
                 'request_type'
             )
@@ -74,7 +74,7 @@ class SoftwareRequestAdmin(admin.ModelAdmin):
 
 @admin.register(ResearchRequest)
 class ResearchRequestAdmin(admin.ModelAdmin):
-    list_display = ('project_title', 'user', 'request_type', 'status', 'payment_status', 'order_status', 'academic_writing_type', 'created_at')
+    list_display = ('title', 'user', 'request_type', 'status', 'payment_status', 'order_status', 'academic_writing_type', 'created_at')
     list_filter = (
         'request_type',
         'status',
@@ -85,7 +85,7 @@ class ResearchRequestAdmin(admin.ModelAdmin):
         'updated_at'
     )
     search_fields = (
-        'project_title',
+        'title',
         'project_description',
         'user__email',
         'user__username',
@@ -101,7 +101,7 @@ class ResearchRequestAdmin(admin.ModelAdmin):
         ('Basic Information', {
             'fields': (
                 'user',
-                'project_title',
+                'title',
                 'project_description',
                 'request_type'
             )

@@ -7,6 +7,13 @@ class BaseRequest(models.Model):
         ('research', 'Research'),
     )
 
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    )
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
@@ -15,6 +22,7 @@ class BaseRequest(models.Model):
     project_title = models.CharField(max_length=255)
     project_description = models.TextField()
     request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -37,6 +45,10 @@ class SoftwareRequest(BaseRequest):
     ai_languages = models.CharField(max_length=100)
     ai_frameworks = models.CharField(max_length=100)
 
+    def save(self, *args, **kwargs):
+        self.request_type = 'software'
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"Software Request: {self.project_title}"
 
@@ -57,6 +69,10 @@ class ResearchRequest(BaseRequest):
     reference_management_tool = models.CharField(max_length=100)
     academic_discussion_type = models.CharField(max_length=100)
     citation_style = models.CharField(max_length=100)
+
+    def save(self, *args, **kwargs):
+        self.request_type = 'research'
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Research Request: {self.project_title}"

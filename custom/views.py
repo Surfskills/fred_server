@@ -26,22 +26,59 @@ class RequestViewSet(viewsets.ViewSet):
         
         # Annotate common fields for both querysets
         software_requests = SoftwareRequest.objects.filter(user=user).annotate(
-            model_type=Value('software', output_field=CharField())
+            model_type=Value('software', output_field=CharField()),
+            # Add NULL values for research-specific fields
+            academic_writing_type=Value(None, output_field=CharField(null=True)),
+            writing_technique=Value(None, output_field=CharField(null=True)),
+            research_paper_structure=Value(None, output_field=CharField(null=True)),
+            academic_writing_style=Value(None, output_field=CharField(null=True)),
+            research_paper_writing_process=Value(None, output_field=CharField(null=True)),
+            critical_writing_type=Value(None, output_field=CharField(null=True)),
+            critical_thinking_skill=Value(None, output_field=CharField(null=True)),
+            critical_writing_structure=Value(None, output_field=CharField(null=True)),
+            discussion_type=Value(None, output_field=CharField(null=True)),
+            discussion_component=Value(None, output_field=CharField(null=True)),
+            academic_writing_tool=Value(None, output_field=CharField(null=True)),
+            research_paper_database=Value(None, output_field=CharField(null=True)),
+            plagiarism_checker=Value(None, output_field=CharField(null=True)),
+            reference_management_tool=Value(None, output_field=CharField(null=True)),
+            academic_discussion_type=Value(None, output_field=CharField(null=True)),
+            citation_style=Value(None, output_field=CharField(null=True))
         ).values(
             'id', 'title', 'project_description', 'request_type',
             'created_at', 'updated_at', 'user_id', 'model_type',
             'status', 'payment_status', 'order_status',
             'budget_range', 'timeline', 'frontend_languages',
             'frontend_frameworks', 'backend_languages', 'backend_frameworks',
-            'ai_languages', 'ai_frameworks'
+            'ai_languages', 'ai_frameworks',
+            'academic_writing_type', 'writing_technique',
+            'research_paper_structure', 'academic_writing_style',
+            'research_paper_writing_process', 'critical_writing_type',
+            'critical_thinking_skill', 'critical_writing_structure',
+            'discussion_type', 'discussion_component',
+            'academic_writing_tool', 'research_paper_database',
+            'plagiarism_checker', 'reference_management_tool',
+            'academic_discussion_type', 'citation_style'
         )
         
         research_requests = ResearchRequest.objects.filter(user=user).annotate(
-            model_type=Value('research', output_field=CharField())
+            model_type=Value('research', output_field=CharField()),
+            # Add NULL values for software-specific fields
+            budget_range=Value(None, output_field=CharField(null=True)),
+            timeline=Value(None, output_field=CharField(null=True)),
+            frontend_languages=Value(None, output_field=CharField(null=True)),
+            frontend_frameworks=Value(None, output_field=CharField(null=True)),
+            backend_languages=Value(None, output_field=CharField(null=True)),
+            backend_frameworks=Value(None, output_field=CharField(null=True)),
+            ai_languages=Value(None, output_field=CharField(null=True)),
+            ai_frameworks=Value(None, output_field=CharField(null=True))
         ).values(
             'id', 'title', 'project_description', 'request_type',
             'created_at', 'updated_at', 'user_id', 'model_type',
             'status', 'payment_status', 'order_status',
+            'budget_range', 'timeline', 'frontend_languages',
+            'frontend_frameworks', 'backend_languages', 'backend_frameworks',
+            'ai_languages', 'ai_frameworks',
             'academic_writing_type', 'writing_technique',
             'research_paper_structure', 'academic_writing_style',
             'research_paper_writing_process', 'critical_writing_type',

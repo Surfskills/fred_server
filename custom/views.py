@@ -57,32 +57,42 @@ class RequestViewSet(viewsets.ViewSet):
         
         # Convert data keys from camelCase to snake_case
         data = {}
+        
+        # Get budget range value (handle both camelCase and snake_case)
+        budget_range = request.data.get('budgetRange') or request.data.get('budget_range')
+        print(f"Original budget_range value: {budget_range}")  # Debug print
+        
         for key, value in request.data.items():
             # Convert camelCase to snake_case
             snake_key = ''.join(['_' + c.lower() if c.isupper() else c for c in key]).lstrip('_')
             
-            # Special handling for budget_range
+            # Handle budget range separately
             if snake_key == 'budget_range':
-                # Map the frontend budget range to model choices
-                budget_map = {
-                    '1000-5000': 'low',
-                    '5000-10000': 'medium',
-                    '10000+': 'high'
-                }
-                value = budget_map.get(value, value)
-            
+                continue  # Skip here, we'll add it later
+                
             data[snake_key] = value
+        
+        # Add budget_range to data with proper value
+        if budget_range:
+            print(f"Processing budget_range: {budget_range}")  # Debug print
+            data['budget_range'] = budget_range
+            print(f"Final budget_range value: {data['budget_range']}")  # Debug print
+        
+        print("Converted data:", data)  # Debug print
+        print("Available budget choices:", dict(SoftwareRequest.BUDGET_RANGES))  # Debug print
         
         if request_type.lower() == 'software':
             serializer = SoftwareRequestSerializer(
                 data=data,
                 context={'request': request}
             )
+            print("Using SoftwareRequestSerializer")  # Debug print
         elif request_type.lower() == 'research':
             serializer = ResearchRequestSerializer(
                 data=data,
                 context={'request': request}
             )
+            print("Using ResearchRequestSerializer")  # Debug print
         else:
             return Response(
                 {
@@ -115,7 +125,9 @@ class RequestViewSet(viewsets.ViewSet):
             {
                 'error': 'Invalid data provided',
                 'validation_errors': serializer.errors,
-                'received_data': data
+                'received_data': data,
+                'model_choices': dict(SoftwareRequest.BUDGET_RANGES),  # Show available choices
+                'note': 'Make sure budget_range matches one of the available choices exactly'
             },
             status=status.HTTP_400_BAD_REQUEST
         )

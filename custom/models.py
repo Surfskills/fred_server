@@ -14,6 +14,27 @@ class BaseRequest(models.Model):
         ('cancelled', 'Cancelled'),
     )
 
+    # Payment status choices
+    PENDING = 'pending'
+    PAID = 'paid'
+    FAILED = 'failed'
+    
+    PAYMENT_STATUS_CHOICES = [
+        (PENDING, 'Pending'),
+        (PAID, 'Paid'),
+        (FAILED, 'Failed'),
+    ]
+    
+    # Order status choices
+    ORDER_STATUS_CHOICES = [
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('canceled', 'Canceled'),
+        ('shipped', 'Shipped'),
+        ('delivered', 'Delivered'),
+        ('proceed_to_pay', 'Proceed to pay'),
+    ]
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
@@ -23,8 +44,24 @@ class BaseRequest(models.Model):
     project_description = models.TextField()
     request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    payment_status = models.CharField(
+        max_length=10,
+        choices=PAYMENT_STATUS_CHOICES,
+        default=PENDING,
+    )
+    order_status = models.CharField(
+        max_length=15,
+        choices=ORDER_STATUS_CHOICES,
+        default='processing',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        # If the payment status is pending, set order status to proceed_to_pay
+        if self.payment_status == self.PENDING:
+            self.order_status = 'proceed_to_pay'
+        super().save(*args, **kwargs)
 
     class Meta:
         abstract = True

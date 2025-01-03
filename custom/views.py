@@ -95,7 +95,8 @@ class RequestViewSet(viewsets.ViewSet):
     def list(self, request):
         """Get all requests for the authenticated user"""
         queryset = self.get_queryset()
-        return Response(list(queryset))  # Convert queryset to list for serialization
+        # Convert queryset to list and return as data array
+        return Response(list(queryset), status=status.HTTP_200_OK)
 
     def create(self, request):
         """Create a new request"""

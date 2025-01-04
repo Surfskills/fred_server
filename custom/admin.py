@@ -4,7 +4,7 @@ from .models import SoftwareRequest, ResearchRequest
 
 @admin.register(SoftwareRequest)
 class SoftwareRequestAdmin(admin.ModelAdmin):
-    list_display = ('title', 'user', 'request_type', 'budget_range', 'status', 'payment_status', 'order_status', 'created_at')
+    list_display = ('title', 'user', 'request_type', 'cost', 'budget_range', 'status', 'payment_status', 'order_status', 'created_at')
     list_filter = (
         'request_type',
         'status',
@@ -33,6 +33,7 @@ class SoftwareRequestAdmin(admin.ModelAdmin):
                 'user',
                 'title',
                 'project_description',
+                'cost',
                 'request_type'
             )
         }),
@@ -74,13 +75,14 @@ class SoftwareRequestAdmin(admin.ModelAdmin):
 
 @admin.register(ResearchRequest)
 class ResearchRequestAdmin(admin.ModelAdmin):
-    list_display = ('title', 'user', 'request_type', 'status', 'payment_status', 'order_status', 'academic_writing_type', 'created_at')
+    list_display = ('title', 'user', 'request_type', 'cost', 'status', 'payment_status', 'order_status', 'academic_writing_type', 'study_level', 'created_at')
     list_filter = (
         'request_type',
         'status',
         'payment_status',
         'order_status',
         'academic_writing_type',
+        'study_level',
         'created_at',
         'updated_at'
     )
@@ -91,7 +93,7 @@ class ResearchRequestAdmin(admin.ModelAdmin):
         'user__username',
         'academic_writing_type',
         'writing_technique',
-        'research_paper_structure'
+        'study_level'
     )
     readonly_fields = ('created_at', 'updated_at')
     date_hierarchy = 'created_at'
@@ -103,6 +105,7 @@ class ResearchRequestAdmin(admin.ModelAdmin):
                 'user',
                 'title',
                 'project_description',
+                'cost',
                 'request_type'
             )
         }),
@@ -117,13 +120,13 @@ class ResearchRequestAdmin(admin.ModelAdmin):
             'fields': (
                 'academic_writing_type',
                 'writing_technique',
-                'research_paper_structure',
-                'academic_writing_style'
+                'academic_writing_style',
+                'study_level',
+                ('number_of_pages', 'number_of_references')
             )
         }),
-        ('Research Process', {
+        ('Critical Writing', {
             'fields': (
-                'research_paper_writing_process',
                 'critical_writing_type',
                 'critical_thinking_skill',
                 'critical_writing_structure'
@@ -134,16 +137,6 @@ class ResearchRequestAdmin(admin.ModelAdmin):
             'fields': (
                 'discussion_type',
                 'discussion_component',
-                'academic_discussion_type'
-            ),
-            'classes': ('collapse',)
-        }),
-        ('Tools and Resources', {
-            'fields': (
-                'academic_writing_tool',
-                'research_paper_database',
-                'plagiarism_checker',
-                'reference_management_tool',
                 'citation_style'
             ),
             'classes': ('collapse',)

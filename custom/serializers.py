@@ -7,7 +7,8 @@ class BaseRequestSerializer(serializers.ModelSerializer):
         fields = (
             'id', 
             'title', 
-            'project_description', 
+            'project_description',
+            'cost',
             'request_type', 
             'user', 
             'status',
@@ -50,20 +51,16 @@ class ResearchRequestSerializer(BaseRequestSerializer):
         fields = BaseRequestSerializer.Meta.fields + (
             'academic_writing_type',
             'writing_technique',
-            'research_paper_structure',
             'academic_writing_style',
-            'research_paper_writing_process',
             'critical_writing_type',
             'critical_thinking_skill',
             'critical_writing_structure',
             'discussion_type',
             'discussion_component',
-            'academic_writing_tool',
-            'research_paper_database',
-            'plagiarism_checker',
-            'reference_management_tool',
-            'academic_discussion_type',
-            'citation_style'
+            'citation_style',
+            'number_of_pages',
+            'number_of_references',
+            'study_level'
         )
 
     def create(self, validated_data):
@@ -76,6 +73,7 @@ class RequestListSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     title = serializers.CharField()
     project_description = serializers.CharField()
+    cost = serializers.DecimalField(max_digits=10, decimal_places=2)
     request_type = serializers.CharField()
     status = serializers.CharField()
     payment_status = serializers.CharField()
@@ -97,20 +95,16 @@ class RequestListSerializer(serializers.Serializer):
     # Research request specific fields
     academic_writing_type = serializers.CharField(required=False)
     writing_technique = serializers.CharField(required=False)
-    research_paper_structure = serializers.CharField(required=False)
     academic_writing_style = serializers.CharField(required=False)
-    research_paper_writing_process = serializers.CharField(required=False)
     critical_writing_type = serializers.CharField(required=False)
     critical_thinking_skill = serializers.CharField(required=False)
     critical_writing_structure = serializers.CharField(required=False)
     discussion_type = serializers.CharField(required=False)
     discussion_component = serializers.CharField(required=False)
-    academic_writing_tool = serializers.CharField(required=False)
-    research_paper_database = serializers.CharField(required=False)
-    plagiarism_checker = serializers.CharField(required=False)
-    reference_management_tool = serializers.CharField(required=False)
-    academic_discussion_type = serializers.CharField(required=False)
     citation_style = serializers.CharField(required=False)
+    number_of_pages = serializers.IntegerField(required=False)
+    number_of_references = serializers.IntegerField(required=False)
+    study_level = serializers.CharField(required=False)
 
     def to_representation(self, instance):
         if isinstance(instance, SoftwareRequest):

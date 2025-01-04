@@ -42,6 +42,7 @@ class BaseRequest(models.Model):
     )
     title = models.CharField(max_length=255)
     project_description = models.TextField()
+    cost = models.DecimalField(max_digits=10, decimal_places=2)
     request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     payment_status = models.CharField(
@@ -90,22 +91,25 @@ class SoftwareRequest(BaseRequest):
         return f"Software Request: {self.title}"
 
 class ResearchRequest(BaseRequest):
+    STUDY_LEVEL_CHOICES = (
+        ('undergraduate', 'Undergraduate'),
+        ('masters', 'Masters'),
+        ('phd', 'PhD'),
+        ('postdoc', 'Post-Doctoral'),
+    )
+
     academic_writing_type = models.CharField(max_length=100)
     writing_technique = models.CharField(max_length=100)
-    research_paper_structure = models.CharField(max_length=100)
     academic_writing_style = models.CharField(max_length=100)
-    research_paper_writing_process = models.CharField(max_length=100)
     critical_writing_type = models.CharField(max_length=100)
     critical_thinking_skill = models.CharField(max_length=100)
     critical_writing_structure = models.CharField(max_length=100)
     discussion_type = models.CharField(max_length=100)
     discussion_component = models.CharField(max_length=100)
-    academic_writing_tool = models.CharField(max_length=100)
-    research_paper_database = models.CharField(max_length=100)
-    plagiarism_checker = models.CharField(max_length=100)
-    reference_management_tool = models.CharField(max_length=100)
-    academic_discussion_type = models.CharField(max_length=100)
     citation_style = models.CharField(max_length=100)
+    number_of_pages = models.IntegerField(default=1)
+    number_of_references = models.IntegerField(default=0)
+    study_level = models.CharField(max_length=20, choices=STUDY_LEVEL_CHOICES, default='undergraduate')
 
     def save(self, *args, **kwargs):
         self.request_type = 'research'

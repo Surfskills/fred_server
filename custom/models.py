@@ -42,7 +42,7 @@ class BaseRequest(models.Model):
     )
     title = models.CharField(max_length=255)
     project_description = models.TextField()
-    cost = models.DecimalField(max_digits=10, decimal_places=2)
+    cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     payment_status = models.CharField(

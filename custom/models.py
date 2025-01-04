@@ -92,10 +92,11 @@ class SoftwareRequest(BaseRequest):
 
 class ResearchRequest(BaseRequest):
     STUDY_LEVEL_CHOICES = (
-        ('undergraduate', 'Undergraduate'),
-        ('masters', 'Masters'),
-        ('phd', 'PhD'),
-        ('postdoc', 'Post-Doctoral'),
+        ('High School', 'High School'),
+        ('Undergraduate', 'Undergraduate'),
+        ('Masters', 'Masters'),
+        ('PhD', 'PhD'),
+        ('Doctoral', 'Doctoral'),
     )
 
     academic_writing_type = models.CharField(max_length=100)
@@ -109,7 +110,7 @@ class ResearchRequest(BaseRequest):
     citation_style = models.CharField(max_length=100)
     number_of_pages = models.IntegerField(default=1)
     number_of_references = models.IntegerField(default=0)
-    study_level = models.CharField(max_length=20, choices=STUDY_LEVEL_CHOICES, default='undergraduate')
+    study_level = models.CharField(max_length=20, choices=STUDY_LEVEL_CHOICES, default='Undergraduate')
 
     def save(self, *args, **kwargs):
         self.request_type = 'research'

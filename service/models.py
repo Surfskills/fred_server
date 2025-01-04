@@ -16,8 +16,9 @@ class Service(models.Model):
     cost = models.DecimalField(max_digits=10, decimal_places=2)
     
     # New fields for sizes and phone number
-    sizes = models.JSONField(default=dict)  # Stores size quantities
-    phone_number = models.CharField(max_length=20)  # Stores contact number
+    sizes = models.JSONField(default=dict)  
+    phone_number = models.CharField(max_length=20, blank=True, null=True) 
+
     
     delivery_time = models.CharField(max_length=100)  # e.g., "2-3 weeks"
     support_duration = models.CharField(max_length=100)  # e.g., "1 month"

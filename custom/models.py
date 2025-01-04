@@ -92,7 +92,7 @@ class SoftwareRequest(BaseRequest):
 
 class ResearchRequest(BaseRequest):
     STUDY_LEVEL_CHOICES = (
-        ('High School', 'High School'),
+        ('HighSchool', 'High School'),
         ('Undergraduate', 'Undergraduate'),
         ('Masters', 'Masters'),
         ('PhD', 'PhD'),

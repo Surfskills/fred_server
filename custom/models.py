@@ -43,17 +43,21 @@ class BaseRequest(models.Model):
     title = models.CharField(max_length=255)
     project_description = models.TextField()
     cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    request_type = models.CharField(max_length=20, choices=REQUEST_TYPES)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    request_type = models.CharField(max_length=20, choices=REQUEST_TYPES, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', blank=True, null=True)
     payment_status = models.CharField(
         max_length=10,
         choices=PAYMENT_STATUS_CHOICES,
         default=PENDING,
+        blank=True,
+        null=True
     )
     order_status = models.CharField(
         max_length=15,
         choices=ORDER_STATUS_CHOICES,
         default='processing',
+        blank=True,
+        null=True
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -74,14 +78,14 @@ class SoftwareRequest(BaseRequest):
         ('10000+', '$10,000+'),
     )
 
-    budget_range = models.CharField(max_length=20, choices=BUDGET_RANGES)
-    timeline = models.CharField(max_length=100)
-    frontend_languages = models.CharField(max_length=100)
-    frontend_frameworks = models.CharField(max_length=100)
-    backend_languages = models.CharField(max_length=100)
-    backend_frameworks = models.CharField(max_length=100)
-    ai_languages = models.CharField(max_length=100)
-    ai_frameworks = models.CharField(max_length=100)
+    budget_range = models.CharField(max_length=20, choices=BUDGET_RANGES, blank=True, null=True)
+    timeline = models.CharField(max_length=100, blank=True, null=True)
+    frontend_languages = models.CharField(max_length=100, blank=True, null=True)
+    frontend_frameworks = models.CharField(max_length=100, blank=True, null=True)
+    backend_languages = models.CharField(max_length=100, blank=True, null=True)
+    backend_frameworks = models.CharField(max_length=100, blank=True, null=True)
+    ai_languages = models.CharField(max_length=100, blank=True, null=True)
+    ai_frameworks = models.CharField(max_length=100, blank=True, null=True)
 
     def save(self, *args, **kwargs):
         self.request_type = 'software'
@@ -99,18 +103,18 @@ class ResearchRequest(BaseRequest):
         ('Doctoral', 'Doctoral'),
     )
 
-    academic_writing_type = models.CharField(max_length=100)
-    writing_technique = models.CharField(max_length=100)
-    academic_writing_style = models.CharField(max_length=100)
-    critical_writing_type = models.CharField(max_length=100)
-    critical_thinking_skill = models.CharField(max_length=100)
-    critical_writing_structure = models.CharField(max_length=100)
-    discussion_type = models.CharField(max_length=100)
-    discussion_component = models.CharField(max_length=100)
-    citation_style = models.CharField(max_length=100)
-    number_of_pages = models.IntegerField(default=1)
-    number_of_references = models.IntegerField(default=0)
-    study_level = models.CharField(max_length=20, choices=STUDY_LEVEL_CHOICES, default='Undergraduate')
+    academic_writing_type = models.CharField(max_length=100, blank=True, null=True)
+    writing_technique = models.CharField(max_length=100, blank=True, null=True)
+    academic_writing_style = models.CharField(max_length=100, blank=True, null=True)
+    critical_writing_type = models.CharField(max_length=100, blank=True, null=True)
+    critical_thinking_skill = models.CharField(max_length=100, blank=True, null=True)
+    critical_writing_structure = models.CharField(max_length=100, blank=True, null=True)
+    discussion_type = models.CharField(max_length=100, blank=True, null=True)
+    discussion_component = models.CharField(max_length=100, blank=True, null=True)
+    citation_style = models.CharField(max_length=100, blank=True, null=True)
+    number_of_pages = models.IntegerField(default=1, blank=True, null=True)
+    number_of_references = models.IntegerField(default=0, blank=True, null=True)
+    study_level = models.CharField(max_length=20, choices=STUDY_LEVEL_CHOICES, default='Undergraduate', blank=True, null=True)
 
     def save(self, *args, **kwargs):
         self.request_type = 'research'

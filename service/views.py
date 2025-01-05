@@ -65,7 +65,7 @@ class ServiceCreateView(APIView):
 
 
 class ServiceDetailView(APIView):
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         """
@@ -92,3 +92,11 @@ class ServiceDetailView(APIView):
         service.save()
         serializer = ServiceSerializer(service)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk):
+        """
+        Delete a specific service by its ID.
+        """
+        service = get_object_or_404(Service, pk=pk)
+        service.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

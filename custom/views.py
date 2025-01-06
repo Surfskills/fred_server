@@ -10,7 +10,6 @@ from .models import SoftwareRequest, ResearchRequest
 from .serializers import (
     SoftwareRequestSerializer,
     ResearchRequestSerializer,
-    RequestListSerializer
 )
 
 class RequestViewSet(viewsets.ViewSet):
@@ -170,9 +169,21 @@ class RequestViewSet(viewsets.ViewSet):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    def can_delete_request(self, instance):
+        """
+        Helper method to check if a request can be deleted based on payment status
+        """
+        if instance.payment_status == 'paid':
+            raise PermissionDenied("Cannot delete a paid order. Please contact support if you need assistance.")
+        return True
+    
     def destroy(self, request, pk=None):
-        """Delete a specific request"""
+        """Delete a specific request if it hasn't been paid for"""
         instance, _ = self.get_object(pk)
+        
+        # Check if the request can be deleted
+        self.can_delete_request(instance)
+        
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

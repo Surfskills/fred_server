@@ -105,10 +105,21 @@ class ServiceDetailView(APIView):
         serializer = ServiceSerializer(service)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def delete(self, request, pk):
+
+    def can_delete_request(self, instance,):
         """
-        Delete a specific service by its ID, ensuring it belongs to the current user.
+        Helper method to check if a request can be deleted based on payment status
         """
-        service = self.get_user_service(pk, request.user)
-        service.delete()
+        if instance.payment_status == 'paid':
+            raise PermissionDenied("Cannot delete a paid order. Please contact support if you need assistance.")
+        return True
+    
+    def destroy(self, request, pk=None):
+        """Delete a specific request if it hasn't been paid for"""
+        instance, _ = self.get_object(pk)
+        
+        # Check if the request can be deleted
+        self.can_delete_request(instance)
+        
+        instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

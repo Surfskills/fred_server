@@ -7,13 +7,14 @@ from authentication.models import User
 from .models import Service
 from .serializers import ServiceSerializer
 from django.shortcuts import get_object_or_404
-
+from rest_framework.exceptions import PermissionDenied
 
 class ServiceListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        services = Service.objects.all()
+        # Only return services owned by the current user
+        services = Service.objects.filter(user=request.user)
         serializer = ServiceSerializer(services, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -23,15 +24,16 @@ class ServiceCreateView(APIView):
 
     def post(self, request):
         data = request.data.copy()
-
-        # Extract user and other fields
         data['user'] = request.user.id
         user = request.user
         service_id = data.get('service_id')
         title = data.get('title')
 
-        # Validate if service with the same service_id exists
-        existing_service = Service.objects.filter(service_id=service_id).first()
+        # Validate if service with the same service_id exists for this user
+        existing_service = Service.objects.filter(
+            service_id=service_id,
+            user=user
+        ).first()
         if existing_service:
             return Response(
                 {
@@ -43,7 +45,10 @@ class ServiceCreateView(APIView):
             )
 
         # Check if a service with the same title and user exists
-        existing_title_service = Service.objects.filter(user=user, title=title).first()
+        existing_title_service = Service.objects.filter(
+            user=user,
+            title=title
+        ).first()
         if existing_title_service:
             return Response(
                 {
@@ -54,35 +59,42 @@ class ServiceCreateView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        # Proceed to create a new service
         serializer = ServiceSerializer(data=data)
         if serializer.is_valid():
-            serializer.save(user=user)  # Attach the user
+            serializer.save(user=user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        # Handle validation errors
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ServiceDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, pk):
+    def get_user_service(self, pk, user):
         """
-        Retrieve a specific service by its ID.
+        Helper method to get a service that belongs to the user
         """
         service = get_object_or_404(Service, pk=pk)
+        if service.user != user:
+            raise PermissionDenied("You do not have permission to access this service.")
+        return service
+
+    def get(self, request, pk):
+        """
+        Retrieve a specific service by its ID, ensuring it belongs to the current user.
+        """
+        service = self.get_user_service(pk, request.user)
         serializer = ServiceSerializer(service)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, pk):
         """
-        Partially update a service, allowing updates only to `cost`, `payment_status`, or `order_status`.
+        Partially update a service, ensuring it belongs to the current user.
         """
-        service = get_object_or_404(Service, pk=pk)
+        service = self.get_user_service(pk, request.user)
         data = request.data
         
-        # Only update the allowed fields: cost, payment_status, or order_status
+        # Only update the allowed fields
         allowed_fields = ['cost', 'payment_status', 'order_status']
         
         for field in allowed_fields:
@@ -95,8 +107,8 @@ class ServiceDetailView(APIView):
 
     def delete(self, request, pk):
         """
-        Delete a specific service by its ID.
+        Delete a specific service by its ID, ensuring it belongs to the current user.
         """
-        service = get_object_or_404(Service, pk=pk)
+        service = self.get_user_service(pk, request.user)
         service.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

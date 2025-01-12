@@ -62,11 +62,12 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
-    'authentication',
+    'authentication.apps.AuthenticationConfig', 
     'service',
     'custom',
     'channels',
     'chat',
+
 ]
 
 CHANNEL_LAYERS = {

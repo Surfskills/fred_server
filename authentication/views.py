@@ -1,29 +1,27 @@
-from django.forms import ValidationError
-from rest_framework import status
+# authentication/views.py
+from django.utils.decorators import method_decorator
+from django.contrib.auth import login, authenticate, logout as django_logout
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import login, authenticate
-from django.contrib.auth import logout as django_logout
-
-from authentication.models import User
-from .serializers import SignInSerializer, SignUpSerializer, UserSerializer
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework_simplejwt.views import TokenVerifyView
 from rest_framework_simplejwt.serializers import TokenVerifySerializer
+from django.forms import ValidationError
+from authentication.models import User
+from authentication.serializers import SignInSerializer, SignUpSerializer, UserSerializer
 
 # Token Authentication and Refresh token API view
 class TokenAPIView(APIView):
     def post(self, request):
-        # Get username and password from the request
-        username = request.data.get('username')
+        # Get email and password from the request
+        email = request.data.get('email')
         password = request.data.get('password')
 
         # Authenticate user
-        user = authenticate(username=username, password=password)
+        user = authenticate(email=email, password=password)
 
         if user:
             # If user is authenticated, generate JWT tokens
@@ -39,8 +37,7 @@ class TokenAPIView(APIView):
                 'user': user_data,
             })
         else:
-            return Response({'error': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response({'error': 'Invalid credentials'}, status=400)
 
 # Unified authentication view (handles both signup and signin)
 @method_decorator(csrf_exempt, name='dispatch')
@@ -68,9 +65,9 @@ class UnifiedAuthView(APIView):
                     'refresh': str(refresh),
                     'access': str(refresh.access_token),
                     'message': 'User registered successfully'
-                }, status=status.HTTP_201_CREATED)
+                }, status=201)
 
-            return Response(signup_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(signup_serializer.errors, status=400)
 
         else:
             # Handle user sign-in (login)
@@ -91,12 +88,12 @@ class UnifiedAuthView(APIView):
                     'refresh': str(refresh),
                     'access': str(refresh.access_token),
                     'message': 'Login successful'
-                }, status=status.HTTP_200_OK)
+                }, status=200)
 
             except ValidationError as e:
                 return Response({
                     'error': str(e.detail)
-                }, status=status.HTTP_401_UNAUTHORIZED)
+                }, status=401)
 
 
 # Logout view to blacklist the refresh token and log out the user
@@ -119,12 +116,12 @@ class LogoutView(APIView):
                 token.blacklist()
 
             except Exception as e:
-                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': str(e)}, status=400)
 
         # Django session logout
         django_logout(request)
 
-        return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+        return Response({"message": "Logged out successfully"}, status=200)
 
 
 class VerifyTokenView(TokenVerifyView):
@@ -138,9 +135,9 @@ class VerifyTokenView(TokenVerifyView):
         serializer = self.get_serializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
-            return Response({'detail': 'Token is valid'}, status=status.HTTP_200_OK)
+            return Response({'detail': 'Token is valid'}, status=200)
         except Exception as e:
-            return Response({'detail': 'Token is invalid or expired'}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'detail': 'Token is invalid or expired'}, status=401)
 
 # Admin users list
 class AdminListView(APIView):
@@ -152,7 +149,7 @@ class AdminListView(APIView):
         """
         admins = User.objects.filter(is_staff=True)  # assuming 'is_staff' denotes admin role
         serializer = UserSerializer(admins, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=200)
 
 # All users list
 class UserListView(APIView):
@@ -164,4 +161,4 @@ class UserListView(APIView):
         """
         users = User.objects.all()
         serializer = UserSerializer(users, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=200)

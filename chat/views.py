@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from django.contrib.contenttypes.models import ContentType
 from authentication.models import User
 from .serializers import ChatRoomSerializer
@@ -22,10 +23,9 @@ class IsAdminOrClientOwner(permissions.BasePermission):
             return True
         return obj.client == request.user
 
-
 class ChatRoomViewSet(viewsets.ModelViewSet):
     serializer_class = ChatRoomSerializer
-    # permission_classes = [permissions.IsAuthenticated, IsAdminOrClientOwner]  # You can enable this if needed
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
@@ -35,22 +35,73 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
             last_message_time=Max('messages__timestamp')
         ).order_by('-last_message_time')
 
+    @action(detail=False, methods=['get'])
+    def search(self, request):
+        """
+        Search for a chatroom by object_id and content_type.
+        """
+        object_id = request.query_params.get('object_id')
+        content_type_id = request.query_params.get('content_type')
+        
+        logger.info(f"Searching chatroom - object_id: {object_id}, content_type: {content_type_id}")
+        
+        if not object_id or not content_type_id:
+            error_msg = "Missing required parameters: object_id and content_type"
+            logger.error(error_msg)
+            return Response(
+                {'error': error_msg},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Move the Q objects into a filter
+            chatroom = ChatRoom.objects.filter(
+                Q(client=request.user) | Q(admin=request.user)
+            ).get(
+                object_id=object_id,
+                content_type_id=content_type_id
+            )
+            
+            logger.info(f"Found existing chatroom: {chatroom.id}")
+            serializer = self.get_serializer(chatroom)
+            return Response(serializer.data)
+        except ChatRoom.DoesNotExist:
+            error_msg = f"No chatroom found for object_id: {object_id}, content_type: {content_type_id}"
+            logger.info(error_msg)
+            return Response(
+                {'error': error_msg},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            error_msg = f"Error searching for chatroom: {str(e)}"
+            logger.error(error_msg)
+            return Response(
+                {'error': error_msg},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     def create(self, request, *args, **kwargs):
         object_id = request.data.get('object_id')
         other_user_id = request.data.get('user_id')
 
+        logger.info(f"Creating chatroom - object_id: {object_id}, other_user_id: {other_user_id}")
+
         # Validate that object_id and other_user_id are provided
         if not object_id or not other_user_id:
+            error_msg = "Both object_id and user_id are required"
+            logger.error(error_msg)
             return Response(
-                {'error': 'Both object_id and user_id are required'},
+                {'error': error_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Dynamically determine content type from object_id
         content_type = self.get_content_type_from_object_id(object_id)
         if not content_type:
+            error_msg = f"Invalid object ID or content type could not be determined for object_id: {object_id}"
+            logger.error(error_msg)
             return Response(
-                {'error': 'Invalid object ID or content type could not be determined'},
+                {'error': error_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -58,8 +109,10 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         try:
             related_object = content_type.get_object_for_this_type(id=object_id)
         except ObjectDoesNotExist:
+            error_msg = f"Object with ID {object_id} does not exist"
+            logger.error(error_msg)
             return Response(
-                {'error': 'Invalid object ID'},
+                {'error': error_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -70,33 +123,43 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
             # Determine roles based on user types
             if request.user.is_client:
                 if not other_user.is_admin:
+                    error_msg = "Selected user must be an admin"
+                    logger.error(error_msg)
                     return Response(
-                        {'error': 'Selected user must be an admin'},
+                        {'error': error_msg},
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 client, admin = request.user, other_user
             elif request.user.is_admin:
                 if not other_user.is_client:
+                    error_msg = "Selected user must be a client"
+                    logger.error(error_msg)
                     return Response(
-                        {'error': 'Selected user must be a client'},
+                        {'error': error_msg},
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 client, admin = other_user, request.user
             else:
+                error_msg = "Invalid user roles"
+                logger.error(error_msg)
                 return Response(
-                    {'error': 'Invalid user roles'},
+                    {'error': error_msg},
                     status=status.HTTP_400_BAD_REQUEST
                 )
         except User.DoesNotExist:
+            error_msg = f"User with ID {other_user_id} does not exist"
+            logger.error(error_msg)
             return Response(
-                {'error': 'Invalid user ID'},
+                {'error': error_msg},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Verify permissions for the related object
         if not self.verify_chat_creation_permission(request.user, related_object):
+            error_msg = "You do not have permission to create this chat room"
+            logger.error(error_msg)
             return Response(
-                {'error': 'You do not have permission to create this chat room'},
+                {'error': error_msg},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -109,63 +172,81 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         ).first()
 
         if existing_room:
+            logger.info(f"Found existing chatroom: {existing_room.id}")
             serializer = self.get_serializer(existing_room)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        # Create new chat room if not found
-        chat_room = ChatRoom.objects.create(
-            content_type=content_type,
-            object_id=object_id,
-            client=client,
-            admin=admin
-        )
+        try:
+            # Create new chat room if not found
+            chat_room = ChatRoom.objects.create(
+                content_type=content_type,
+                object_id=object_id,
+                client=client,
+                admin=admin
+            )
 
-        # Create initial system message
-        Message.objects.create(
-            room=chat_room,
-            sender=request.user,
-            content=f"Chat room created by {request.user.email}",
-            is_read=True
-        )
+            # Create initial system message
+            Message.objects.create(
+                room=chat_room,
+                sender=request.user,
+                content=f"Chat room created by {request.user.email}",
+                is_read=True
+            )
 
-        serializer = self.get_serializer(chat_room)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            logger.info(f"Created new chatroom: {chat_room.id}")
+            serializer = self.get_serializer(chat_room)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            error_msg = f"Error creating chatroom: {str(e)}"
+            logger.error(error_msg)
+            return Response(
+                {'error': error_msg},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def verify_chat_creation_permission(self, user, related_object):
         """
         Verify if the user has permission to create a chat room for this object.
         """
-        if hasattr(related_object, 'user'):
-            return (
-                related_object.user == user or 
-                user.is_admin or 
-                user.is_staff
-            )
-        return False
+        try:
+            if hasattr(related_object, 'user'):
+                return (
+                    related_object.user == user or 
+                    user.is_admin or 
+                    user.is_staff
+                )
+            logger.warning(f"Object {related_object} has no user field")
+            return False
+        except Exception as e:
+            logger.error(f"Error verifying chat creation permission: {str(e)}")
+            return False
 
     def get_content_type_from_object_id(self, object_id):
         """
         Dynamically determine the content type based on the object_id.
-        Checks if the object_id corresponds to SoftwareRequest, ResearchRequest, or Service.
         """
         try:
             # Check if object_id corresponds to SoftwareRequest model
             software_request = SoftwareRequest.objects.filter(id=object_id).first()
             if software_request:
+                logger.info(f"Object {object_id} identified as SoftwareRequest")
                 return ContentType.objects.get_for_model(SoftwareRequest)
             
             # Check if object_id corresponds to ResearchRequest model
             research_request = ResearchRequest.objects.filter(id=object_id).first()
             if research_request:
+                logger.info(f"Object {object_id} identified as ResearchRequest")
                 return ContentType.objects.get_for_model(ResearchRequest)
             
             # Check if object_id corresponds to Service model
             service = Service.objects.filter(id=object_id).first()
             if service:
+                logger.info(f"Object {object_id} identified as Service")
                 return ContentType.objects.get_for_model(Service)
 
+            logger.error(f"No matching content type found for object_id: {object_id}")
             return None
 
         except Exception as e:
-            logger.error(f"Error determining content type for object_id {object_id}: {e}")
+            logger.error(f"Error determining content type for object_id {object_id}: {str(e)}")
             return None

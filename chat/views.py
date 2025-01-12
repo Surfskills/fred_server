@@ -8,7 +8,10 @@ from django.core.exceptions import ObjectDoesNotExist
 from service.models import Service
 from custom.models import SoftwareRequest, ResearchRequest
 from django.db.models import Q, Max
+import logging
 
+# Set up logger for debugging
+logger = logging.getLogger(__name__)
 
 class IsAdminOrClientOwner(permissions.BasePermission):
     """
@@ -154,6 +157,8 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
             if service:
                 return ContentType.objects.get_for_model(Service)
 
+            return None
+
         except Exception as e:
-            # Log or handle exceptions as needed
+            logger.error(f"Error determining content type for object_id {object_id}: {e}")
             return None

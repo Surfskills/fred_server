@@ -5,13 +5,9 @@ from authentication.models import User
 from .serializers import ChatRoomSerializer
 from .models import ChatRoom, Message
 from django.core.exceptions import ObjectDoesNotExist
-from service.models import Service  # Import the Service model
-from custom.models import SoftwareRequest  # Import the SoftwareRequest model
-from custom.models import ResearchRequest  # Import the ResearchRequest model
-from django.db.models import Q
-from django.db.models import Max
-
-
+from service.models import Service
+from custom.models import SoftwareRequest, ResearchRequest
+from django.db.models import Q, Max
 
 
 class IsAdminOrClientOwner(permissions.BasePermission):
@@ -106,7 +102,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(existing_room)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        # Create new chat room
+        # Create new chat room if not found
         chat_room = ChatRoom.objects.create(
             content_type=content_type,
             object_id=object_id,

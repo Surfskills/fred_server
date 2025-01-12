@@ -38,15 +38,14 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def search(self, request):
         """
-        Search for a chatroom by object_id and content_type.
+        Search for a chatroom by object_id.
         """
         object_id = request.query_params.get('object_id')
-        content_type_id = request.query_params.get('content_type')
         
-        logger.info(f"Searching chatroom - object_id: {object_id}, content_type: {content_type_id}")
+        logger.info(f"Searching chatroom by object_id: {object_id}")
         
-        if not object_id or not content_type_id:
-            error_msg = "Missing required parameters: object_id and content_type"
+        if not object_id:
+            error_msg = "Missing required parameter: object_id"
             logger.error(error_msg)
             return Response(
                 {'error': error_msg},
@@ -57,16 +56,13 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
             # Move the Q objects into a filter
             chatroom = ChatRoom.objects.filter(
                 Q(client=request.user) | Q(admin=request.user)
-            ).get(
-                object_id=object_id,
-                content_type_id=content_type_id
-            )
+            ).get(object_id=object_id)
             
             logger.info(f"Found existing chatroom: {chatroom.id}")
             serializer = self.get_serializer(chatroom)
             return Response(serializer.data)
         except ChatRoom.DoesNotExist:
-            error_msg = f"No chatroom found for object_id: {object_id}, content_type: {content_type_id}"
+            error_msg = f"No chatroom found for object_id: {object_id}"
             logger.info(error_msg)
             return Response(
                 {'error': error_msg},

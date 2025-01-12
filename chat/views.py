@@ -25,7 +25,7 @@ class IsAdminOrClientOwner(permissions.BasePermission):
 
 class ChatRoomViewSet(viewsets.ModelViewSet):
     serializer_class = ChatRoomSerializer
-    # permission_classes = [permissions.IsAuthenticated, IsAdminOrClientOwner]
+    # permission_classes = [permissions.IsAuthenticated, IsAdminOrClientOwner]  # You can enable this if needed
 
     def get_queryset(self):
         user = self.request.user
@@ -38,6 +38,13 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         object_id = request.data.get('object_id')
         other_user_id = request.data.get('user_id')
+
+        # Validate that object_id and other_user_id are provided
+        if not object_id or not other_user_id:
+            return Response(
+                {'error': 'Both object_id and user_id are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Dynamically determine content type from object_id
         content_type = self.get_content_type_from_object_id(object_id)

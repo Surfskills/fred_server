@@ -6,6 +6,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import login, authenticate
 from django.contrib.auth import logout as django_logout
+
+from authentication.models import User
 from .serializers import SignInSerializer, SignUpSerializer, UserSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.utils.decorators import method_decorator
@@ -139,3 +141,27 @@ class VerifyTokenView(TokenVerifyView):
             return Response({'detail': 'Token is valid'}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'detail': 'Token is invalid or expired'}, status=status.HTTP_401_UNAUTHORIZED)
+
+# Admin users list
+class AdminListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """
+        Get a list of admin users.
+        """
+        admins = User.objects.filter(is_staff=True)  # assuming 'is_staff' denotes admin role
+        serializer = UserSerializer(admins, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+# All users list
+class UserListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """
+        Get a list of all users.
+        """
+        users = User.objects.all()
+        serializer = UserSerializer(users, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

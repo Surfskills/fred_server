@@ -1,11 +1,16 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.response import Response
-from django.utils import timezone
-from django.db.models import Q, Max
 from django.contrib.contenttypes.models import ContentType
 from authentication.models import User
 from .serializers import ChatRoomSerializer
 from .models import ChatRoom, Message
+from django.core.exceptions import ObjectDoesNotExist
+from service.models import Service  # Import the Service model
+from custom.models import SoftwareRequest  # Import the SoftwareRequest model
+from custom.models import ResearchRequest  # Import the ResearchRequest model
+from django.db.models import Q
+from django.db.models import Max
+
 
 
 
@@ -17,6 +22,7 @@ class IsAdminOrClientOwner(permissions.BasePermission):
         if request.user.is_admin:
             return True
         return obj.client == request.user
+
 
 class ChatRoomViewSet(viewsets.ModelViewSet):
     serializer_class = ChatRoomSerializer
@@ -31,23 +37,21 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         ).order_by('-last_message_time')
 
     def create(self, request, *args, **kwargs):
-        content_type_id = request.data.get('content_type')
         object_id = request.data.get('object_id')
         other_user_id = request.data.get('user_id')
 
-        # Validate content type
-        try:
-            content_type = ContentType.objects.get_for_id(content_type_id)
-        except ContentType.DoesNotExist:
+        # Dynamically determine content type from object_id
+        content_type = self.get_content_type_from_object_id(object_id)
+        if not content_type:
             return Response(
-                {'error': 'Invalid content type'},
+                {'error': 'Invalid object ID or content type could not be determined'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Validate the related object exists
         try:
             related_object = content_type.get_object_for_this_type(id=object_id)
-        except:
+        except ObjectDoesNotExist:
             return Response(
                 {'error': 'Invalid object ID'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -56,7 +60,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         # Validate other user exists and has correct role
         try:
             other_user = User.objects.get(id=other_user_id)
-            
+
             # Determine roles based on user types
             if request.user.is_client:
                 if not other_user.is_admin:
@@ -132,3 +136,28 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
                 user.is_staff
             )
         return False
+
+    def get_content_type_from_object_id(self, object_id):
+        """
+        Dynamically determine the content type based on the object_id.
+        Checks if the object_id corresponds to SoftwareRequest, ResearchRequest, or Service.
+        """
+        try:
+            # Check if object_id corresponds to SoftwareRequest model
+            software_request = SoftwareRequest.objects.filter(id=object_id).first()
+            if software_request:
+                return ContentType.objects.get_for_model(SoftwareRequest)
+            
+            # Check if object_id corresponds to ResearchRequest model
+            research_request = ResearchRequest.objects.filter(id=object_id).first()
+            if research_request:
+                return ContentType.objects.get_for_model(ResearchRequest)
+            
+            # Check if object_id corresponds to Service model
+            service = Service.objects.filter(id=object_id).first()
+            if service:
+                return ContentType.objects.get_for_model(Service)
+
+        except Exception as e:
+            # Log or handle exceptions as needed
+            return None

@@ -9,6 +9,8 @@ cachetools==5.5.0
 celery==5.4.0
 certifi==2024.8.30
 cffi==1.17.0
+channels==4.2.0
+channels_redis==4.2.1
 charset-normalizer==3.3.2
 click==8.1.7
 click-didyoumean==0.3.1
@@ -17,7 +19,7 @@ click-repl==0.3.0
 colorama==0.4.6
 cryptography==43.0.0
 dj-database-url==2.2.0
-
+Django==4.2.17
 django-cors-headers==4.4.0
 django-rest-knox==5.0.1
 django-storages==1.14.4
@@ -42,6 +44,7 @@ knox==0.1.14
 kombu==5.4.1
 loguru==0.7.2
 MarkupSafe==2.1.5
+msgpack==1.1.0
 oauthlib==3.2.2
 packaging==24.1
 paystackapi==2.1.3

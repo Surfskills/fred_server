@@ -69,6 +69,10 @@ INSTALLED_APPS = [
     'chat',
 
 ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
+
 
 CHANNEL_LAYERS = {
     'default': {

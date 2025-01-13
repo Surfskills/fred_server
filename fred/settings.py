@@ -143,12 +143,17 @@ SIMPLE_JWT = {
 #     "http://localhost:3000",  # Your Next.js frontend URL
 # ]
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000"
+
+]
 ALLOWED_HOSTS = ['*']
 
 CORS_ALLOW_ALL_ORIGINS = True
 
 WSGI_APPLICATION = 'fred.wsgi.application'
 
+ASGI_APPLICATION = 'fred.routing.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

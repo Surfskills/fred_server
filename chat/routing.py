@@ -1,5 +1,7 @@
 # chat/routing.py
 from django.urls import re_path
+
+from chat.middleware import WebSocketErrorMiddleware
 from . import consumers
 
 websocket_urlpatterns = [
@@ -15,9 +17,11 @@ from chat import routing as chat_routing
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),
-    "websocket": AuthMiddlewareStack(
-        URLRouter(
-            chat_routing.websocket_urlpatterns
+    "websocket": WebSocketErrorMiddleware(
+        AuthMiddlewareStack(
+            URLRouter(
+                chat_routing.websocket_urlpatterns
+            )
         )
     ),
 })

@@ -9,9 +9,9 @@ from django.db.models import Sum
 class OrderAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]  # Ensures only authenticated users can access
 
-    def get(self, request, service_id, type):
+    def get(self, request, id, type):
         # Ensure the service belongs to the logged-in user
-        service = get_object_or_404(Service, service_id=service_id, user=request.user)
+        service = get_object_or_404(Service, id=id, user=request.user)  # Change here from service_id to id
 
         # Check the 'type' argument and generate the correct PDF
         if type == 'financial':
@@ -23,7 +23,7 @@ class OrderAnalyticsView(APIView):
 
         # Return PDF as FileResponse for download
         response = FileResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename={service.service_id}_{type}.pdf'
+        response['Content-Disposition'] = f'attachment; filename={service.id}_{type}.pdf'  # Change here to use id instead of service_id
         return response
 
     def get_pdf(self, request, service_id, type):

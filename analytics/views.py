@@ -5,9 +5,6 @@ from rest_framework.views import APIView
 from service.models import Service
 from .utils import generate_financial_pdf, generate_contract_pdf 
 from django.db.models import Sum
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
-from django.http import JsonResponse
 
 class OrderAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]  # Ensures only authenticated users can access
@@ -42,9 +39,6 @@ class OrderAnalyticsView(APIView):
         response = FileResponse(pdf, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename={service.service_id}_{type}.pdf'
         return response
-
-
-
 
 class GeneralAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]  # Ensures only authenticated users can access

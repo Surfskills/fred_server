@@ -6,7 +6,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from django.shortcuts import get_object_or_404
-from .models import Service
+from service.models import Service
 
 def generate_contract_pdf(service_id):
     # Retrieve the service based on service_id

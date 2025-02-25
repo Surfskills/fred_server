@@ -67,6 +67,8 @@ INSTALLED_APPS = [
     'custom',
     'channels',
     'chat',
+    'workers',
+    'analytics',
 
 ]
 

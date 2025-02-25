@@ -3,14 +3,18 @@ from django.conf import settings
 
 
 class Service(models.Model):
+    REQUEST_TYPES = (
+        ('service', 'service'),
+          )
     # User associated with the service
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
-        related_name='user_services'
+        related_name='%(class)s_services'
     )
     
     # Other fields for service details
+    request_type = models.CharField(max_length=20, choices=REQUEST_TYPES, blank=True, null=True)
     title = models.CharField(max_length=255)
     description = models.TextField()
     cost = models.DecimalField(max_digits=10, decimal_places=2)

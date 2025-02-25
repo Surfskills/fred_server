@@ -30,10 +30,7 @@ class ServiceCreateView(APIView):
         title = data.get('title')
 
         # Validate if service with the same service_id exists for this user
-        existing_service = Service.objects.filter(
-            service_id=service_id,
-            user=user
-        ).first()
+        existing_service = Service.objects.filter(service_id=service_id,user=user).first()
         if existing_service:
             return Response(
                 {

@@ -95,7 +95,7 @@ class AcceptedOfferAdmin(admin.ModelAdmin):
     def get_offer_details(self, obj):
         """Returns a brief description of the offer"""
         if obj.service:
-            return obj.service.name
+            return obj.service.title
         elif obj.software_request:
             return obj.software_request.title
         elif obj.research_request:
@@ -105,7 +105,7 @@ class AcceptedOfferAdmin(admin.ModelAdmin):
     def get_service_details(self, obj):
         """Returns detailed info for the related service"""
         if obj.service:
-            return f"{obj.service.name} ({obj.service.id})"
+            return f"{obj.service.title} ({obj.service.id})"
         return "-"
 
     get_offer_details.short_description = _('Offer Details')

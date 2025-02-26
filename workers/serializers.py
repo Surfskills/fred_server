@@ -1,23 +1,68 @@
 from rest_framework import serializers
-from .models import AcceptedOffer
-from service.models import Service
-from custom.models import SoftwareRequest, ResearchRequest
+
+from custom.serializers import ResearchRequestSerializer, SoftwareRequestSerializer
 from service.serializers import ServiceSerializer
-from custom.serializers import SoftwareRequestSerializer, ResearchRequestSerializer
+from .models import AcceptedOffer
 
 class AcceptedOfferSerializer(serializers.ModelSerializer):
-    details = serializers.SerializerMethodField()
+    service_details = serializers.SerializerMethodField()
+    software_request_details = serializers.SerializerMethodField()
+    research_request_details = serializers.SerializerMethodField()
+    
+    # Add these computed fields to access common attributes across offer types
+    title = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    cost = serializers.SerializerMethodField()
 
     class Meta:
         model = AcceptedOffer
-        fields = '__all__' 
-    
-    def get_details(self, obj):
-        """Return detailed information based on the offer type."""
-        if obj.offer_type == 'service' and obj.service:
+        fields = [
+            'id', 'user', 'service', 'software_request', 'research_request', 
+            'offer_type', 'status', 'accepted_at', 'completed_at', 'returned_at',
+            'service_details', 'software_request_details', 'research_request_details',
+            'title', 'description', 'cost' 
+        ]
+
+    # Existing methods for detailed information
+    def get_service_details(self, obj):
+        if obj.service:
             return ServiceSerializer(obj.service).data
-        elif obj.offer_type == 'software' and obj.software_request:
+        return None
+
+    def get_software_request_details(self, obj):
+        if obj.software_request:
             return SoftwareRequestSerializer(obj.software_request).data
-        elif obj.offer_type == 'research' and obj.research_request:
+        return None
+
+    def get_research_request_details(self, obj):
+        if obj.research_request:
             return ResearchRequestSerializer(obj.research_request).data
+        return None
+    
+    # New methods to access common attributes
+    def get_title(self, obj):
+        if obj.service:
+            return obj.service.title
+        elif obj.software_request:
+            return obj.software_request.title
+        elif obj.research_request:
+            return obj.research_request.title
+        return None
+        
+    def get_description(self, obj):
+        if obj.service:
+            return obj.service.description
+        elif obj.software_request:
+            return obj.software_request.project_description
+        elif obj.research_request:
+            return obj.research_request.project_description
+        return None
+        
+    def get_cost(self, obj):
+        if obj.service:
+            return obj.service.cost
+        elif obj.software_request:
+            return obj.software_request.cost
+        elif obj.research_request:
+            return obj.research_request.cost
         return None

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+import uuid
 
 from service.models import Service
 from custom.models import SoftwareRequest, ResearchRequest
@@ -95,131 +96,7 @@ class AvailableOffersViewSet(viewsets.ViewSet):
             return Response({"detail": "Offer not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
-# class AcceptedOffersViewSet(viewsets.ViewSet):
-#     """
-#     ViewSet for managing accepted offers
-#     Authentication required
-#     """
-#     permission_classes = [IsAuthenticated]
-    
-#     def list(self, request):
-#         """Get all offers accepted by the current user"""
-#         accepted_offers = AcceptedOffer.objects.filter(user=request.user)
-        
-#         # Prepare the response with detailed offer information
-#         result = []
-#         for offer in accepted_offers:
-#             offer_data = {
-#                 'accepted_offer_id': offer.id,
-#                 'offer_id': offer.offer_id,
-#                 'status': offer.status,
-#                 'accepted_at': offer.accepted_at,
-#                 'details': None
-#             }
-            
-#             # Get the details of the offer
-#             try:
-#                 if offer.offer_type == 'service':
-#                     service = Service.objects.get(id=offer.offer_id)
-#                     offer_data['details'] = ServiceSerializer(service).data
-#                 elif offer.offer_type == 'software':
-#                     software = SoftwareRequest.objects.get(id=offer.offer_id)
-#                     offer_data['details'] = SoftwareRequestSerializer(software).data
-#                 elif offer.offer_type == 'research':
-#                     research = ResearchRequest.objects.get(id=offer.offer_id)
-#                     offer_data['details'] = ResearchRequestSerializer(research).data
-#             except (Service.DoesNotExist, SoftwareRequest.DoesNotExist, ResearchRequest.DoesNotExist):
-#                 # If the underlying offer was deleted, just continue
-#                 offer_data['details'] = {'error': 'Original offer no longer exists'}
-                
-#             result.append(offer_data)
-            
-#         return Response(result, status=status.HTTP_200_OK)
-    
-#     def retrieve(self, request, pk=None):
-#         """Get a specific accepted offer by ID"""
-#         accepted_offer = get_object_or_404(AcceptedOffer, id=pk, user=request.user)
-            
-#         # Get the details of the offer
-#         offer_data = {
-#             'accepted_offer_id': accepted_offer.id,
-#             'status': accepted_offer.status,
-#             'accepted_at': accepted_offer.accepted_at,
-#             'completed_at': accepted_offer.completed_at,
-#             'returned_at': accepted_offer.returned_at,
-#             'details': None
-#         }
-        
-#         try:
-#             if accepted_offer.offer_type == 'service':
-#                 service = Service.objects.get(id=accepted_offer.offer_id)
-#                 offer_data['details'] = ServiceSerializer(service).data
-#             elif accepted_offer.offer_type == 'software':
-#                 software = SoftwareRequest.objects.get(id=accepted_offer.offer_id)
-#                 offer_data['details'] = SoftwareRequestSerializer(software).data
-#             elif accepted_offer.offer_type == 'research':
-#                 research = ResearchRequest.objects.get(id=accepted_offer.offer_id)
-#                 offer_data['details'] = ResearchRequestSerializer(research).data
-#         except (Service.DoesNotExist, SoftwareRequest.DoesNotExist, ResearchRequest.DoesNotExist):
-#             offer_data['details'] = {'error': 'Original offer no longer exists'}
-            
-#         return Response(offer_data, status=status.HTTP_200_OK)
-    
-#     @action(detail=True, methods=['post'])
-#     def start_work(self, request, pk=None):
-#         """Start work on an accepted offer"""
-#         accepted_offer = get_object_or_404(AcceptedOffer, id=pk, user=request.user, status='accepted')
-
-#         accepted_offer.status = 'in_progress'
-#         accepted_offer.save()
-
-#         return Response({"detail": "Started work on the offer."}, status=status.HTTP_200_OK)
-    
-#     @action(detail=True, methods=['post'])
-#     def complete(self, request, pk=None):
-#         """Mark an offer as completed"""
-#         accepted_offer = get_object_or_404(AcceptedOffer, id=pk, user=request.user)
-
-#         if accepted_offer.status != 'in_progress':
-#             return Response({"detail": "Only in-progress offers can be completed."}, 
-#                                status=status.HTTP_400_BAD_REQUEST)
-
-#         accepted_offer.status = 'completed'
-#         accepted_offer.completed_at = timezone.now()
-#         accepted_offer.save()
-
-#         return Response({"detail": "Offer marked as completed."}, status=status.HTTP_200_OK)
-    
-#     @action(detail=True, methods=['post'])
-#     def return_offer(self, request, pk=None):
-#         """Return an offer"""
-#         accepted_offer = get_object_or_404(AcceptedOffer, id=pk, user=request.user)
-
-#         if accepted_offer.status not in ['accepted', 'in_progress']:
-#             return Response({"detail": "Only accepted or in-progress offers can be returned."}, 
-#                                status=status.HTTP_400_BAD_REQUEST)
-
-#         accepted_offer.status = 'returned'
-#         accepted_offer.returned_at = timezone.now()
-#         accepted_offer.save()
-
-#         return Response({"detail": "Offer returned successfully."}, status=status.HTTP_200_OK)
-
-from rest_framework import status, viewsets
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from django.shortcuts import get_object_or_404
-from django.utils import timezone
-
-from service.models import Service
-from custom.models import SoftwareRequest, ResearchRequest
-from .models import AcceptedOffer
 from .serializers import AcceptedOfferSerializer
-from service.serializers import ServiceSerializer
-from custom.serializers import SoftwareRequestSerializer, ResearchRequestSerializer
-
 
 class AcceptOfferView(APIView):
     """
@@ -243,13 +120,31 @@ class AcceptOfferView(APIView):
         for model in [Service, SoftwareRequest, ResearchRequest]:
             try:
                 offer = model.objects.get(id=offer_id)
-                offer_type = model.__name__.lower()  # Get the model name dynamically (service, software_request, or research_request)
+                offer_type = model.__name__.lower()  # Get the model name dynamically (service, softwarerequest, or researchrequest)
                 break  # Stop once we find the offer
             except model.DoesNotExist:
                 continue  # If not found in the current model, try the next one
 
         if not offer:
             return Response({"detail": "Offer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate a unique ID for the accepted offer
+        unique_id = str(uuid.uuid4())
+        
+        # Check if the user has already accepted this offer
+        existing_acceptance = None
+        if offer_type == 'service':
+            existing_acceptance = AcceptedOffer.objects.filter(user=request.user, service=offer).first()
+        elif offer_type == 'softwarerequest':
+            existing_acceptance = AcceptedOffer.objects.filter(user=request.user, software_request=offer).first()
+        elif offer_type == 'researchrequest':
+            existing_acceptance = AcceptedOffer.objects.filter(user=request.user, research_request=offer).first()
+            
+        if existing_acceptance:
+            return Response({
+                "detail": "You have already accepted this offer.",
+                "accepted_offer_id": existing_acceptance.id
+            }, status=status.HTTP_200_OK)
 
         # Now create the AcceptedOffer object based on the offer type
         accepted_offer = None

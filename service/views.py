@@ -8,6 +8,7 @@ from .models import Service
 from .serializers import ServiceSerializer
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
+import uuid
 
 class ServiceListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -30,34 +31,41 @@ class ServiceCreateView(APIView):
         title = data.get('title')
 
         # Validate if service with the same service_id exists for this user
-        existing_service = Service.objects.filter(service_id=service_id,user=user).first()
-        if existing_service:
-            return Response(
-                {
-                    "message": "Service with this service ID already exists.",
-                    "service_id": existing_service.id,
-                    "service_details": ServiceSerializer(existing_service).data,
-                },
-                status=status.HTTP_200_OK,
-            )
+        if service_id:
+            existing_service = Service.objects.filter(service_id=service_id, user=user).first()
+            if existing_service:
+                return Response(
+                    {
+                        "message": "Service with this service ID already exists.",
+                        "service_id": existing_service.id,
+                        "service_details": ServiceSerializer(existing_service).data,
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
         # Check if a service with the same title and user exists
-        existing_title_service = Service.objects.filter(
-            user=user,
-            title=title
-        ).first()
-        if existing_title_service:
-            return Response(
-                {
-                    "message": "Service with this title already exists.",
-                    "service_id": existing_title_service.id,
-                    "service_details": ServiceSerializer(existing_title_service).data,
-                },
-                status=status.HTTP_200_OK,
-            )
+        if title:
+            existing_title_service = Service.objects.filter(
+                user=user,
+                title=title
+            ).first()
+            if existing_title_service:
+                return Response(
+                    {
+                        "message": "Service with this title already exists.",
+                        "service_id": existing_title_service.id,
+                        "service_details": ServiceSerializer(existing_title_service).data,
+                    },
+                    status=status.HTTP_200_OK,
+                )
 
+        # Generate a unique service_id if not provided
+        if not service_id:
+            data['service_id'] = f"svc-{str(uuid.uuid4())[:8]}"
+            
         serializer = ServiceSerializer(data=data)
         if serializer.is_valid():
+            # Django will handle the automatic primary key (id) generation
             serializer.save(user=user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -115,4 +123,3 @@ class ServiceDetailView(APIView):
         # If the payment status is not paid, proceed with deletion
         service.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    

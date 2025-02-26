@@ -11,6 +11,7 @@ from .serializers import (
     SoftwareRequestSerializer,
     ResearchRequestSerializer,
 )
+import uuid
 
 class RequestViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -105,7 +106,7 @@ class RequestViewSet(viewsets.ViewSet):
         return Response(list(queryset), status=status.HTTP_200_OK)
 
     def create(self, request):
-        """Create a new request"""
+        """Create a new request with a unique ID"""
         request_type = request.data.get('request_type')
         
         if not request_type:
@@ -117,6 +118,9 @@ class RequestViewSet(viewsets.ViewSet):
         # Add user to request data
         data = request.data.copy()
         data['user'] = request.user.id
+        
+        # Generate a UUID to ensure uniqueness
+        unique_id = str(uuid.uuid4())
         
         if request_type == 'software':
             serializer = SoftwareRequestSerializer(
@@ -135,6 +139,8 @@ class RequestViewSet(viewsets.ViewSet):
             )
 
         if serializer.is_valid():
+            # Since Django auto-generates IDs, we don't need to set it explicitly
+            # The unique_id could be used as a separate field if needed
             instance = serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
             

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+import uuid
 
 from service.models import Service
 from custom.models import SoftwareRequest, ResearchRequest
@@ -107,117 +108,79 @@ class AcceptOfferView(APIView):
     def post(self, request):
         # Retrieve the offer_id and offer_type from the request body
         offer_id = request.data.get('offer_id')
-        offer_type = request.data.get('offer_type')  # 'service', 'software', or 'research'
+        offer_type = request.data.get('offer_type')  # Now explicitly requiring offer_type
 
         if not offer_id or not offer_type:
-            return Response(
-                {"detail": "Offer ID and type are required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({
+                "detail": "Both offer_id and offer_type are required."
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Verify the offer exists based on the offer type
+        # Verify the offer exists based on the provided type
+        offer = None
+        
+        # Find the offer based on the specified type
         try:
             if offer_type == 'service':
-                offer = Service.objects.get(id=offer_id)
-                # Create a new AcceptedOffer with only the service field set
-                # Leave other offer fields as None
-                accepted_offer = AcceptedOffer(
-                    user=request.user,
-                    service=offer,
-                    software_request=None,
-                    research_request=None,
-                    offer_type=offer_type,
-                    status='accepted',
-                    accepted_at=timezone.now()
-                )
+                offer = get_object_or_404(Service, id=offer_id)
             elif offer_type == 'software':
-                offer = SoftwareRequest.objects.get(id=offer_id)
-                accepted_offer = AcceptedOffer(
-                    user=request.user,
-                    service=None,
-                    software_request=offer,
-                    research_request=None,
-                    offer_type=offer_type,
-                    status='accepted',
-                    accepted_at=timezone.now()
-                )
+                offer = get_object_or_404(SoftwareRequest, id=offer_id)
             elif offer_type == 'research':
-                offer = ResearchRequest.objects.get(id=offer_id)
-                accepted_offer = AcceptedOffer(
-                    user=request.user,
-                    service=None,
-                    software_request=None,
-                    research_request=offer,
-                    offer_type=offer_type,
-                    status='accepted',
-                    accepted_at=timezone.now()
-                )
+                offer = get_object_or_404(ResearchRequest, id=offer_id)
             else:
-                return Response(
-                    {"detail": "Invalid offer type."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        except (Service.DoesNotExist, SoftwareRequest.DoesNotExist, ResearchRequest.DoesNotExist):
-            return Response(
-                {"detail": "Offer not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
+                return Response({
+                    "detail": "Invalid offer type. Must be 'service', 'software', or 'research'."
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except:
+            return Response({"detail": "Offer not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check if this offer has already been accepted
-        existing_filters = {'user': request.user}
+        # Check if the user has already accepted this offer
+        existing_acceptance = None
+        if offer_type == 'service':
+            existing_acceptance = AcceptedOffer.objects.filter(user=request.user, service=offer).first()
+        elif offer_type == 'software':
+            existing_acceptance = AcceptedOffer.objects.filter(user=request.user, software_request=offer).first()
+        elif offer_type == 'research':
+            existing_acceptance = AcceptedOffer.objects.filter(user=request.user, research_request=offer).first()
+            
+        if existing_acceptance:
+            return Response({
+                "detail": "You have already accepted this offer.",
+                "accepted_offer_id": existing_acceptance.id
+            }, status=status.HTTP_200_OK)
+
+        # Create the AcceptedOffer object with all inherited properties
+        accepted_offer_data = {
+            'user': request.user,
+            'status': 'accepted',
+            'accepted_at': timezone.now(),
+            'offer_type': offer_type
+        }
         
+        # Add the appropriate foreign key based on offer type
         if offer_type == 'service':
-            existing_filters['service'] = offer
+            accepted_offer_data['service'] = offer
         elif offer_type == 'software':
-            existing_filters['software_request'] = offer
+            accepted_offer_data['software_request'] = offer
         elif offer_type == 'research':
-            existing_filters['research_request'] = offer
+            accepted_offer_data['research_request'] = offer
             
-        existing_acceptance = AcceptedOffer.objects.filter(**existing_filters).first()
+        # Create the AcceptedOffer object
+        accepted_offer = AcceptedOffer.objects.create(**accepted_offer_data)
 
-        if existing_acceptance:
-            return Response(
-                {
-                    "detail": "You have already accepted this offer.",
-                    "accepted_offer_id": existing_acceptance.id
-                },
-                status=status.HTTP_200_OK
-            )
-
-        # Check if another user has already accepted this offer
-        if offer_type == 'service':
-            existing_acceptance = AcceptedOffer.objects.filter(service=offer).exclude(user=request.user).first()
-        elif offer_type == 'software':
-            existing_acceptance = AcceptedOffer.objects.filter(software_request=offer).exclude(user=request.user).first()
-        elif offer_type == 'research':
-            existing_acceptance = AcceptedOffer.objects.filter(research_request=offer).exclude(user=request.user).first()
-            
-        if existing_acceptance:
-            return Response(
-                {"detail": "This offer has already been accepted by another user."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Save the new AcceptedOffer
-        try:
-            accepted_offer.save()
-            return Response(
-                {
-                    "detail": "Offer accepted successfully.",
-                    "accepted_offer_id": accepted_offer.id
-                },
-                status=status.HTTP_201_CREATED
-            )
-        except Exception as e:
-            return Response(
-                {"detail": f"Error accepting offer: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        # Serialize the response to include all inherited details
+        serializer = AcceptedOfferSerializer(accepted_offer)
+        
+        # Return success response with the serialized accepted offer
+        return Response({
+            "detail": "Offer accepted successfully.",
+            "accepted_offer_id": accepted_offer.id,
+            "offer_details": serializer.data
+        }, status=status.HTTP_201_CREATED)
     
 class AcceptedOffersViewSet(viewsets.ViewSet):
     """
-    ViewSet for managing accepted offers.
-    Authentication required.
+    ViewSet for managing accepted offers
+    Authentication required
     """
     permission_classes = [IsAuthenticated]
 
@@ -232,6 +195,18 @@ class AcceptedOffersViewSet(viewsets.ViewSet):
         accepted_offer = get_object_or_404(AcceptedOffer, id=pk, user=request.user)
         serializer = AcceptedOfferSerializer(accepted_offer)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'])
+    def by_type(self, request):
+        """Get accepted offers filtered by type"""
+        offer_type = request.query_params.get('type')
+        if not offer_type:
+            return Response({"detail": "Offer type parameter is required."}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+                          
+        accepted_offers = AcceptedOffer.objects.filter(user=request.user, offer_type=offer_type)
+        serializer = AcceptedOfferSerializer(accepted_offers, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def start_work(self, request, pk=None):
@@ -241,7 +216,11 @@ class AcceptedOffersViewSet(viewsets.ViewSet):
         accepted_offer.status = 'in_progress'
         accepted_offer.save()
 
-        return Response({"detail": "Started work on the offer."}, status=status.HTTP_200_OK)
+        serializer = AcceptedOfferSerializer(accepted_offer)
+        return Response({
+            "detail": "Started work on the offer.",
+            "offer": serializer.data
+        }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
@@ -256,7 +235,11 @@ class AcceptedOffersViewSet(viewsets.ViewSet):
         accepted_offer.completed_at = timezone.now()
         accepted_offer.save()
 
-        return Response({"detail": "Offer marked as completed."}, status=status.HTTP_200_OK)
+        serializer = AcceptedOfferSerializer(accepted_offer)
+        return Response({
+            "detail": "Offer marked as completed.",
+            "offer": serializer.data
+        }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def return_offer(self, request, pk=None):
@@ -271,4 +254,8 @@ class AcceptedOffersViewSet(viewsets.ViewSet):
         accepted_offer.returned_at = timezone.now()
         accepted_offer.save()
 
-        return Response({"detail": "Offer returned successfully."}, status=status.HTTP_200_OK)
+        serializer = AcceptedOfferSerializer(accepted_offer)
+        return Response({
+            "detail": "Offer returned successfully.",
+            "offer": serializer.data
+        }, status=status.HTTP_200_OK)

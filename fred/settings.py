@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-print("DATABASE_URL: ", os.environ.get('DATABASE_URL'))
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 # Base directory setup
@@ -29,13 +29,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # Database configuration
+# DATABASES = {
+#     'default': dj_database_url.config(
+#         default=os.environ.get('DATABASE_URL'),
+#         conn_max_age=600,  # connection lifetime in seconds
+#         ssl_require=True,  # recommended for production
+#     )
+# }
+
 DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,  # connection lifetime in seconds
-        ssl_require=True,  # recommended for production
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',  # SQLite database file stored in the project root
+    }
 }
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
@@ -62,6 +70,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'django_extensions',
     'authentication.apps.AuthenticationConfig', 
     'service',
     'custom',

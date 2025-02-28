@@ -1,85 +1,105 @@
 from rest_framework import serializers
-
-from custom.serializers import ResearchRequestSerializer, SoftwareRequestSerializer
-from service.serializers import ServiceSerializer
 from .models import AcceptedOffer
+from service.serializers import ServiceSerializer
+from custom.serializers import SoftwareRequestSerializer, ResearchRequestSerializer
+
+
+
+
 
 class AcceptedOfferSerializer(serializers.ModelSerializer):
-    # Use SerializerMethodField for all details
-    offer_details = serializers.SerializerMethodField()
+    service = ServiceSerializer(read_only=True)
+    software_request = SoftwareRequestSerializer(read_only=True)
+    research_request = ResearchRequestSerializer(read_only=True)
     
-    # Common attributes across offer types
-    title = serializers.SerializerMethodField()
-    description = serializers.SerializerMethodField()
-    cost = serializers.SerializerMethodField()
-    created_by = serializers.SerializerMethodField()
-    created_at = serializers.SerializerMethodField()
-
     class Meta:
         model = AcceptedOffer
         fields = [
-            'id', 'user', 'service', 'software_request', 'research_request', 
-            'offer_type', 'status', 'accepted_at', 'completed_at', 'returned_at',
-            'offer_details', 'title', 'description', 'cost', 'created_by', 'created_at'
+            'id',
+            'service',
+            'software_request',
+            'research_request',
+            'status',
+            'offer_type',
+            'accepted_at',
+            'started_at',
+            'completed_at',
+            'returned_at',
         ]
-        read_only_fields = ['offer_details', 'title', 'description', 'cost', 'created_by', 'created_at']
+        read_only_fields = ['accepted_at']
 
-    def get_offer_details(self, obj):
-        """Get complete details of the offer based on its type"""
-        if obj.service:
-            return ServiceSerializer(obj.service).data
-        elif obj.software_request:
-            return SoftwareRequestSerializer(obj.software_request).data
-        elif obj.research_request:
-            return ResearchRequestSerializer(obj.research_request).data
-        return None
+
+class AcceptedOfferCreateSerializer(serializers.ModelSerializer):
     
-    def get_title(self, obj):
-        """Get title from any offer type"""
-        if obj.service:
-            return obj.service.title
-        elif obj.software_request:
-            return obj.software_request.title
-        elif obj.research_request:
-            return obj.research_request.title
-        return None
+    class Meta:
+        model = AcceptedOffer
+        fields = [
+            'service',
+            'software_request',
+            'research_request',
+            'status',
+            'offer_type',
+
+        ]
+    
+    def validate(self, data):
+        """
+        Validate that only one related offer is provided based on offer_type
+        """
+        offer_type = data.get('offer_type')
+        service = data.get('service')
+        software_request = data.get('software_request')
+        research_request = data.get('research_request')
         
-    def get_description(self, obj):
-        """Get description from any offer type"""
-        if obj.service:
-            return obj.service.description
-        elif obj.software_request:
-            return obj.software_request.project_description
-        elif obj.research_request:
-            return obj.research_request.project_description
-        return None
+        if offer_type == 'service' and not service:
+            raise serializers.ValidationError("Service must be provided for service offer type")
+        elif offer_type == 'software' and not software_request:
+            raise serializers.ValidationError("Software request must be provided for software offer type")
+        elif offer_type == 'research' and not research_request:
+            raise serializers.ValidationError("Research request must be provided for research offer type")
         
-    def get_cost(self, obj):
-        """Get cost from any offer type"""
-        if obj.service:
-            return obj.service.cost
-        elif obj.software_request:
-            return obj.software_request.cost
-        elif obj.research_request:
-            return obj.research_request.cost
-        return None
+        # Ensure only the relevant offer is set
+        if offer_type == 'service':
+            data['software_request'] = None
+            data['research_request'] = None
+        elif offer_type == 'software':
+            data['service'] = None
+            data['research_request'] = None
+        elif offer_type == 'research':
+            data['service'] = None
+            data['software_request'] = None
+            
+        return data
+
+
+# class AcceptedOfferUpdateSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = AcceptedOffer
+#         fields = ['status', 'original_data']
     
-    def get_created_by(self, obj):
-        """Get creator from any offer type"""
-        if obj.service:
-            return obj.service.created_by.username if obj.service.created_by else None
-        elif obj.software_request:
-            return obj.software_request.created_by.username if obj.software_request.created_by else None
-        elif obj.research_request:
-            return obj.research_request.created_by.username if obj.research_request.created_by else None
-        return None
+#     def validate_status(self, value):
+#         """
+#         Update timestamps based on status changes
+#         """
+#         instance = getattr(self, 'instance', None)
+#         if instance and instance.status != value:
+#             if value == 'in_progress' and not instance.started_at:
+#                 self.context['started_at'] = True
+#             elif value == 'completed' and not instance.completed_at:
+#                 self.context['completed_at'] = True
+#             elif value == 'returned' and not instance.returned_at:
+#                 self.context['returned_at'] = True
+#         return value
     
-    def get_created_at(self, obj):
-        """Get creation date from any offer type"""
-        if obj.service:
-            return obj.service.created_at
-        elif obj.software_request:
-            return obj.software_request.created_at
-        elif obj.research_request:
-            return obj.research_request.created_at
-        return None
+#     def update(self, instance, validated_data):
+#         # Update timestamps based on status changes
+#         from django.utils import timezone
+        
+#         if self.context.get('started_at'):
+#             instance.started_at = timezone.now()
+#         if self.context.get('completed_at'):
+#             instance.completed_at = timezone.now()
+#         if self.context.get('returned_at'):
+#             instance.returned_at = timezone.now()
+            
+#         return super().update(instance, validated_data)

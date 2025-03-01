@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.db import models
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
+from django.contrib.contenttypes.models import ContentType
 
 class BaseRequest(models.Model):
     REQUEST_TYPES = (
@@ -33,8 +35,24 @@ class BaseRequest(models.Model):
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
         ('proceed_to_pay', 'Proceed to pay'),
+        ('accepted', 'Accepted'),
+        ('returned', 'Returned'),
     ]
-
+    
+    # Acceptance status choices
+    ACCEPTANCE_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('returned', 'Returned'),
+        ('completed', 'Completed'),
+    ]
+    acceptance_status = models.CharField(
+        max_length=15,
+        choices=ACCEPTANCE_STATUS_CHOICES,
+        default='pending',
+        blank=True,
+        null=True
+    )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
@@ -116,9 +134,20 @@ class ResearchRequest(BaseRequest):
     number_of_references = models.IntegerField(default=0, blank=True, null=True)
     study_level = models.CharField(max_length=20, choices=STUDY_LEVEL_CHOICES, default='Undergraduate', blank=True, null=True)
 
+
     def save(self, *args, **kwargs):
         self.request_type = 'research'
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Research Request: {self.title}"
+
+class SoftwareRequestFile(models.Model):
+    software_request = models.ForeignKey(SoftwareRequest, on_delete=models.CASCADE, related_name="files")
+    file = models.FileField(upload_to="software_request_files/")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+class ResearchRequestFile(models.Model):
+    research_request = models.ForeignKey(ResearchRequest, on_delete=models.CASCADE, related_name="files")
+    file = models.FileField(upload_to="research_request_files/")
+    uploaded_at = models.DateTimeField(auto_now_add=True)

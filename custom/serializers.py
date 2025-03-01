@@ -15,7 +15,8 @@ class BaseRequestSerializer(serializers.ModelSerializer):
             'payment_status',
             'order_status',
             'created_at', 
-            'updated_at'
+            'updated_at',
+            'acceptance_status'
         )
         read_only_fields = ('user', 'created_at', 'updated_at')
 

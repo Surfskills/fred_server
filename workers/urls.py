@@ -5,6 +5,7 @@ from .views import (
     AcceptOfferView,
     AcceptedOffersViewSet,
     CompleteOfferView,
+    MultiFileUploadAPIView,
     ReturnOfferView,
     StartWorkOnOfferView
 )
@@ -23,4 +24,5 @@ urlpatterns = [
     path('accepted-offers/<int:pk>/start_work/', StartWorkOnOfferView.as_view(), name='start_work_on_offer'),
     path('accepted-offers/<int:pk>/complete/', CompleteOfferView.as_view(), name='complete_offer'),
     path('accepted-offers/<int:pk>/return_offer/', ReturnOfferView.as_view(), name='return_offer'),  # Keep this separate
+    path('upload-files/', MultiFileUploadAPIView.as_view(), name='upload-files'),
 ]

@@ -44,9 +44,24 @@ class Service(models.Model):
         ('canceled', 'Canceled'),
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
-        ('proceed_to_pay', 'Proceed to pay'),  # New status option
+        ('proceed_to_pay', 'Proceed to pay'),
+        ('accepted', 'Accepted'),
+        ('returned', 'Returned'),
     ]
-    
+        # Add new acceptance status choices
+    ACCEPTANCE_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('returned', 'Returned'),
+        ('completed', 'Completed'),
+    ]
+    acceptance_status = models.CharField(
+        max_length=15,
+        choices=ACCEPTANCE_STATUS_CHOICES,
+        default='pending',
+        blank=True,
+        null=True
+    )
     payment_status = models.CharField(
         max_length=10,
         choices=PAYMENT_STATUS_CHOICES,
@@ -67,3 +82,12 @@ class Service(models.Model):
     
     def __str__(self):
         return self.title
+    
+class ServiceFile(models.Model):
+    # Files linked to the Service (order)
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="files")
+    file = models.FileField(upload_to="service_files/")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.service.title} - {self.file.name}"

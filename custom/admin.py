@@ -4,7 +4,11 @@ from .models import SoftwareRequest, ResearchRequest
 
 @admin.register(SoftwareRequest)
 class SoftwareRequestAdmin(admin.ModelAdmin):
-    list_display = ('title', 'user', 'request_type', 'cost', 'budget_range', 'status', 'payment_status', 'order_status', 'created_at')
+    list_display = (
+        'title', 'user', 'request_type', 'acceptance_status', 
+        'cost', 'budget_range', 'status', 'payment_status', 
+        'order_status', 'created_at'
+    )
     list_filter = (
         'request_type',
         'status',
@@ -12,7 +16,8 @@ class SoftwareRequestAdmin(admin.ModelAdmin):
         'order_status',
         'budget_range',
         'created_at',
-        'updated_at'
+        'updated_at',
+        'acceptance_status'
     )
     search_fields = (
         'title',
@@ -26,7 +31,6 @@ class SoftwareRequestAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     date_hierarchy = 'created_at'
     list_per_page = 25
-    
     fieldsets = (
         ('Basic Information', {
             'fields': (
@@ -70,12 +74,15 @@ class SoftwareRequestAdmin(admin.ModelAdmin):
         return self.readonly_fields
 
     def has_delete_permission(self, request, obj=None):
-        # Only superusers can delete requests
         return request.user.is_superuser
 
 @admin.register(ResearchRequest)
 class ResearchRequestAdmin(admin.ModelAdmin):
-    list_display = ('title', 'user', 'request_type', 'cost', 'status', 'payment_status', 'order_status', 'academic_writing_type', 'study_level', 'created_at')
+    list_display = (
+        'title', 'user', 'request_type', 'acceptance_status', 
+        'cost', 'status', 'payment_status', 'order_status', 
+        'academic_writing_type', 'study_level', 'created_at'
+    )
     list_filter = (
         'request_type',
         'status',
@@ -98,7 +105,6 @@ class ResearchRequestAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     date_hierarchy = 'created_at'
     list_per_page = 25
-
     fieldsets = (
         ('Basic Information', {
             'fields': (
@@ -148,10 +154,9 @@ class ResearchRequestAdmin(admin.ModelAdmin):
     )
 
     def get_readonly_fields(self, request, obj=None):
-        if obj:  # Editing an existing object
+        if obj:
             return self.readonly_fields + ('user', 'request_type')
         return self.readonly_fields
 
     def has_delete_permission(self, request, obj=None):
-        # Only superusers can delete requests
         return request.user.is_superuser

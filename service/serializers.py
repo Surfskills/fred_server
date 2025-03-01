@@ -8,7 +8,7 @@ class ServiceSerializer(serializers.ModelSerializer):
             'id', 'user', 'title', 'description', 'cost', 
             'sizes', 'phone_number', 'delivery_time', 
             'support_duration', 'features', 'process_link', 
-            'service_id', 'payment_status', 'order_status'
+            'service_id', 'payment_status', 'order_status', 'acceptance_status',
         ]
 
     # Validate `features` to handle both strings and lists
@@ -57,3 +57,4 @@ class ServiceSerializer(serializers.ModelSerializer):
         if not (6 <= len(value) <= 15):
             raise serializers.ValidationError("Phone number length must be between 6 and 15 digits.")
         return value
+    

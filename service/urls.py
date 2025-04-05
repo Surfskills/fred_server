@@ -6,8 +6,8 @@ urlpatterns = [
     path('', ServiceCreateView.as_view(), name='service-create'),
     
     # Service listing (GET request)
-    path('list/', ServiceListView.as_view(), name='service-list'),  # New URL for listing services
+    path('list/', ServiceListView.as_view(), name='service-list'),
     
-    # Service detail (GET and PATCH requests)
+    # Service detail (GET, PATCH, DELETE requests using the global primary key)
     path('<int:pk>/', ServiceDetailView.as_view(), name='service-detail'),
 ]

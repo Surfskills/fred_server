@@ -3,6 +3,16 @@ from django.db import models
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 
+# Create a base model for ID sequence management
+class IDManager(models.Model):
+    """
+    A model to manage the sequence of IDs across multiple models.
+    This serves as a central point for ID generation.
+    """
+    # This model just needs to exist to create a sequence
+    class Meta:
+        managed = True
+
 class BaseRequest(models.Model):
     REQUEST_TYPES = (
         ('software', 'Software'),
@@ -46,6 +56,14 @@ class BaseRequest(models.Model):
         ('returned', 'Returned'),
         ('completed', 'Completed'),
     ]
+    
+    # Keep the default id field but also add id_manager for shared sequence
+    id_manager = models.OneToOneField(
+        IDManager,
+        on_delete=models.CASCADE,
+        related_name='%(class)s_manager',
+    )
+    
     acceptance_status = models.CharField(
         max_length=15,
         choices=ACCEPTANCE_STATUS_CHOICES,
@@ -81,10 +99,21 @@ class BaseRequest(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
+        # Create IDManager instance if this is a new object
+        if not hasattr(self, 'id_manager') or self.id_manager is None:
+            id_manager = IDManager.objects.create()
+            self.id_manager = id_manager
+            
         # If the payment status is pending, set order status to proceed_to_pay
         if self.payment_status == self.PENDING:
             self.order_status = 'proceed_to_pay'
+            
         super().save(*args, **kwargs)
+        
+    # Add a property to get the shared ID
+    @property
+    def shared_id(self):
+        return self.id_manager.id if self.id_manager else None
 
     class Meta:
         abstract = True
@@ -134,13 +163,13 @@ class ResearchRequest(BaseRequest):
     number_of_references = models.IntegerField(default=0, blank=True, null=True)
     study_level = models.CharField(max_length=20, choices=STUDY_LEVEL_CHOICES, default='Undergraduate', blank=True, null=True)
 
-
     def save(self, *args, **kwargs):
         self.request_type = 'research'
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Research Request: {self.title}"
+
 
 class SoftwareRequestFile(models.Model):
     software_request = models.ForeignKey(SoftwareRequest, on_delete=models.CASCADE, related_name="files")

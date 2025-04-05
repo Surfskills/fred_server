@@ -1,7 +1,13 @@
 from rest_framework import serializers
-from .models import SoftwareRequest, ResearchRequest
+
+from service.models import Service
+from service.serializers import ServiceSerializer
+from .models import SoftwareRequest, ResearchRequest, IDManager
 
 class BaseRequestSerializer(serializers.ModelSerializer):
+    # Use id as the field name instead of id_manager
+    id = serializers.PrimaryKeyRelatedField(source='id_manager.id', read_only=True)
+    
     class Meta:
         abstract = True
         fields = (
@@ -26,6 +32,12 @@ class BaseRequestSerializer(serializers.ModelSerializer):
         if not self.context['request'].user:
             raise serializers.ValidationError("User must be authenticated")
         return attrs
+        
+    def create(self, validated_data):
+        # Create a new IDManager instance to get a new primary key
+        id_manager = IDManager.objects.create()
+        validated_data['id_manager'] = id_manager
+        return super().create(validated_data)
 
 class SoftwareRequestSerializer(BaseRequestSerializer):
     class Meta(BaseRequestSerializer.Meta):
@@ -68,10 +80,11 @@ class ResearchRequestSerializer(BaseRequestSerializer):
         validated_data['user'] = self.context['request'].user
         validated_data['request_type'] = 'research'
         return super().create(validated_data)
-
+    
 class RequestListSerializer(serializers.Serializer):
     # Base fields
     id = serializers.IntegerField()
+    shared_id = serializers.IntegerField(required=False)
     title = serializers.CharField()
     project_description = serializers.CharField()
     cost = serializers.DecimalField(max_digits=10, decimal_places=2)
@@ -108,11 +121,22 @@ class RequestListSerializer(serializers.Serializer):
     study_level = serializers.CharField(required=False)
 
     def to_representation(self, instance):
-        if isinstance(instance, SoftwareRequest):
-            serializer = SoftwareRequestSerializer(instance)
-        elif isinstance(instance, ResearchRequest):
-            serializer = ResearchRequestSerializer(instance)
+        if hasattr(instance, 'id_manager'):
+            # For models with id_manager
+            if isinstance(instance, SoftwareRequest):
+                serializer = SoftwareRequestSerializer(instance)
+            elif isinstance(instance, ResearchRequest):
+                serializer = ResearchRequestSerializer(instance)
+            elif isinstance(instance, Service):
+                serializer = ServiceSerializer(instance)
+            else:
+                return super().to_representation(instance)
+                
+            data = serializer.data
+            # Add shared_id if it's missing
+            if 'shared_id' not in data and hasattr(instance, 'id_manager') and instance.id_manager:
+                data['shared_id'] = instance.id_manager.id
+            return data
         else:
+            # Fall back to default behavior
             return super().to_representation(instance)
-        
-        return serializer.data 

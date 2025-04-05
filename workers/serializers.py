@@ -16,6 +16,9 @@ class AcceptedOfferSerializer(serializers.ModelSerializer):
         model = AcceptedOffer
         fields = [
             'id',
+            'shared_id',
+            'request_type',
+            'title',  
             'service',
             'software_request',
             'research_request',

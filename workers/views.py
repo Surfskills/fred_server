@@ -6,7 +6,7 @@ from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from service.models import Service, ServiceFile
-from custom.models import ResearchRequestFile, SoftwareRequest, ResearchRequest, SoftwareRequestFile
+from custom.models import IDManager, ResearchRequestFile, SoftwareRequest, ResearchRequest, SoftwareRequestFile
 from .models import AcceptedOffer
 from .serializers import AcceptedOfferSerializer
 from service.serializers import ServiceSerializer
@@ -99,88 +99,67 @@ class AvailableOffersViewSet(viewsets.ViewSet):
 
 
 class AcceptOfferView(APIView):
-    """
-    API endpoint for accepting an offer
-    Authentication required
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Retrieve the offer_id from the request body
-        offer_id = request.data.get('offer_id')
+        shared_id = request.data.get('offer_id')  # Now using shared_id (IDManager's ID)
 
-        if not offer_id:
+        if not shared_id:
             return Response({"detail": "Offer ID is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Verify the offer exists regardless of the offer type
+        try:
+            # Get the IDManager instance
+            id_manager = IDManager.objects.get(id=shared_id)
+        except IDManager.DoesNotExist:
+            return Response({"detail": "Offer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Find the linked model instance
         offer = None
         offer_type = None
-        original_data = {}
-
-        # Try to find the offer from one of the three models
         try:
-            offer = Service.objects.get(id=offer_id)
+            offer = id_manager.service_manager
             offer_type = 'service'
-            # Update the acceptance status to 'accepted'
-            offer.acceptance_status = 'accepted'
-            offer.save()
-            # Serialize to get full data
-            original_data = ServiceSerializer(offer).data
         except Service.DoesNotExist:
             try:
-                offer = SoftwareRequest.objects.get(id=offer_id)
+                offer = id_manager.softwarerequest_manager
                 offer_type = 'software'
-                # Update the acceptance status to 'accepted'
-                offer.acceptance_status = 'accepted'
-                offer.save()
-                # Serialize to get full data
-                original_data = SoftwareRequestSerializer(offer).data
             except SoftwareRequest.DoesNotExist:
                 try:
-                    offer = ResearchRequest.objects.get(id=offer_id)
+                    offer = id_manager.researchrequest_manager
                     offer_type = 'research'
-                    # Update the acceptance status to 'accepted'
-                    offer.acceptance_status = 'accepted'
-                    offer.save()
-                    # Serialize to get full data
-                    original_data = ResearchRequestSerializer(offer).data
                 except ResearchRequest.DoesNotExist:
                     return Response({"detail": "Offer not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Add offer_type to original data
+        # Update acceptance status
+        offer.acceptance_status = 'accepted'
+        offer.save()
+
+        # Serialize data based on offer type
+        if offer_type == 'service':
+            original_data = ServiceSerializer(offer).data
+        elif offer_type == 'software':
+            original_data = SoftwareRequestSerializer(offer).data
+        else:
+            original_data = ResearchRequestSerializer(offer).data
         original_data['offer_type'] = offer_type
 
-        # Now create the AcceptedOffer object based on the offer type
-        accepted_offer = None
-        if offer_type == 'service':
-            accepted_offer = AcceptedOffer.objects.create(
-                user=request.user,
-                service=offer,
-                status='accepted',
-                accepted_at=timezone.now(),
-                offer_type='service',
-                original_data=original_data
-            )
-        elif offer_type == 'software':
-            accepted_offer = AcceptedOffer.objects.create(
-                user=request.user,
-                software_request=offer,
-                status='accepted',
-                accepted_at=timezone.now(),
-                offer_type='software',
-                original_data=original_data
-            )
-        elif offer_type == 'research':
-            accepted_offer = AcceptedOffer.objects.create(
-                user=request.user,
-                research_request=offer,
-                status='accepted',
-                accepted_at=timezone.now(),
-                offer_type='research',
-                original_data=original_data
-            )
+        # Create AcceptedOffer
+        field_mapping = {
+            'service': 'service',
+            'software': 'software_request',
+            'research': 'research_request'
+        }
 
-        # Return success response with the accepted offer ID
+        accepted_offer = AcceptedOffer.objects.create(
+            user=request.user,
+            **{field_mapping[offer_type]: offer},  # Correctly map the field name
+            status='accepted',
+            accepted_at=timezone.now(),
+            offer_type=offer_type,
+            original_data=original_data
+        )
+
+
         return Response({
             "detail": "Offer accepted successfully.",
             "accepted_offer_id": accepted_offer.id

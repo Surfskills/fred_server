@@ -1,4 +1,4 @@
-# authentication/views.py
+import logging
 from django.utils.decorators import method_decorator
 from django.contrib.auth import login, authenticate, logout as django_logout
 from django.http import JsonResponse
@@ -13,18 +13,24 @@ from django.forms import ValidationError
 from authentication.models import User
 from authentication.serializers import SignInSerializer, SignUpSerializer, UserSerializer
 
+# Set up a logger for this module
+logger = logging.getLogger('authentication')
+
 # Token Authentication and Refresh token API view
 class TokenAPIView(APIView):
     def post(self, request):
-        # Get email and password from the request
         email = request.data.get('email')
         password = request.data.get('password')
+
+        logger.info(f"Attempting to authenticate user: {email}")
 
         # Authenticate user
         user = authenticate(email=email, password=password)
 
         if user:
-            # If user is authenticated, generate JWT tokens
+            logger.info(f"User {email} authenticated successfully.")
+
+            # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
             access_token = refresh.access_token
 
@@ -37,22 +43,30 @@ class TokenAPIView(APIView):
                 'user': user_data,
             })
         else:
+            logger.warning(f"Authentication failed for user: {email}")
             return Response({'error': 'Invalid credentials'}, status=400)
 
 # Unified authentication view (handles both signup and signin)
-@method_decorator(csrf_exempt, name='dispatch')
+import logging
+
+# Get the 'authentication' logger defined in settings.py
+logger = logging.getLogger('authentication')
+
 class UnifiedAuthView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        # Check if it's a sign-up request
+        # Log incoming request data
+        logger.debug(f"Received request data: {request.data}")
+
         is_signup = request.data.get('is_signup', False)
+        logger.debug(f"Is this a sign-up request? {is_signup}")
 
         if is_signup:
-            # Handle user registration
             signup_serializer = SignUpSerializer(data=request.data)
             if signup_serializer.is_valid():
                 user = signup_serializer.save()
+                logger.info(f"User {user.email} registered successfully.")
 
                 # Create JWT tokens
                 refresh = RefreshToken.for_user(user)
@@ -67,15 +81,21 @@ class UnifiedAuthView(APIView):
                     'message': 'User registered successfully'
                 }, status=201)
 
-            return Response(signup_serializer.errors, status=400)
+            # Log errors if sign-up serializer fails
+            logger.error(f"Sign-up failed. Validation errors: {signup_serializer.errors}")
+            return Response({
+                'error': 'Sign-up failed',
+                'details': signup_serializer.errors
+            }, status=400)
 
         else:
-            # Handle user sign-in (login)
             signin_serializer = SignInSerializer(data=request.data)
 
             try:
                 signin_serializer.is_valid(raise_exception=True)
                 user = signin_serializer.validated_data['user']
+
+                logger.info(f"User {user.email} signed in successfully.")
 
                 # Create JWT tokens
                 refresh = RefreshToken.for_user(user)
@@ -91,9 +111,11 @@ class UnifiedAuthView(APIView):
                 }, status=200)
 
             except ValidationError as e:
+                logger.error(f"Sign-in failed. Validation error: {e.detail}")
                 return Response({
-                    'error': str(e.detail)
-                }, status=401)
+                    'error': 'Sign-in failed',
+                    'details': str(e.detail)
+                }, status=400)
 
 
 # Logout view to blacklist the refresh token and log out the user
@@ -101,11 +123,9 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """
-        Log out the user and blacklist the refresh token.
-        """
-        # Get the refresh token from the request (this is typically provided as part of the Authorization header or a separate field)
-        refresh_token = request.data.get('refresh')  # assuming the token is passed in the request body
+        refresh_token = request.data.get('refresh')
+
+        logger.info(f"Attempting to log out. Refresh token: {refresh_token}")
 
         if refresh_token:
             try:
@@ -115,11 +135,15 @@ class LogoutView(APIView):
                 # Blacklist the refresh token
                 token.blacklist()
 
+                logger.info(f"Refresh token {refresh_token} blacklisted.")
+
             except Exception as e:
+                logger.error(f"Error blacklisting refresh token: {str(e)}")
                 return Response({'error': str(e)}, status=400)
 
         # Django session logout
         django_logout(request)
+        logger.info("User logged out successfully.")
 
         return Response({"message": "Logged out successfully"}, status=200)
 
@@ -135,20 +159,21 @@ class VerifyTokenView(TokenVerifyView):
         serializer = self.get_serializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
+            logger.info(f"Token {request.data['token']} is valid.")
             return Response({'detail': 'Token is valid'}, status=200)
         except Exception as e:
+            logger.error(f"Token {request.data['token']} is invalid or expired. Error: {str(e)}")
             return Response({'detail': 'Token is invalid or expired'}, status=401)
+
 
 # Admin users list
 class AdminListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """
-        Get a list of admin users.
-        """
-        admins = User.objects.filter(is_staff=True)  # assuming 'is_staff' denotes admin role
+        admins = User.objects.filter(is_staff=True)  
         serializer = UserSerializer(admins, many=True)
+        logger.info("Fetched list of admin users.")
         return Response(serializer.data, status=200)
 
 # All users list
@@ -156,9 +181,7 @@ class UserListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """
-        Get a list of all users.
-        """
         users = User.objects.all()
         serializer = UserSerializer(users, many=True)
+        logger.info("Fetched list of all users.")
         return Response(serializer.data, status=200)

@@ -32,8 +32,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,  # connection lifetime in seconds
-        ssl_require=True,  # recommended for production
+        conn_max_age=600,
+        ssl_require=True,
+        engine='django.db.backends.postgresql_psycopg2',  # Explicit engine
     )
 }
 
@@ -220,3 +221,26 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',  # Change this to DEBUG for more detailed logs
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'authentication': {  # Add your custom logger here
+            'handlers': ['console'],
+            'level': 'DEBUG',  # Set to DEBUG to catch everything
+            'propagate': True,
+        },
+    },
+}

@@ -1,15 +1,15 @@
-from django.db import models
+import uuid
 from django.conf import settings
+from django.db import models
+from django.db import transaction
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
+from django.contrib.contenttypes.models import ContentType
 
 from custom.models import IDManager
+
+
+
 class Service(models.Model):
-    # Keep the default id field but also add id_manager for shared sequence
-    id_manager = models.OneToOneField(
-        IDManager,
-        on_delete=models.CASCADE,
-        related_name='service_manager',
-    )
-    
     # User associated with the service
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
@@ -30,7 +30,8 @@ class Service(models.Model):
     support_duration = models.CharField(max_length=100)  # e.g., "1 month"
     features = models.JSONField()  # Stores an array of features
     process_link = models.URLField()
-    service_id = models.CharField(max_length=100, unique=True)
+    service_id = models.CharField(max_length=100)
+    shared_id = models.PositiveIntegerField(unique=True, editable=False)
     
     # Payment status choices
     PENDING = 'pending'
@@ -83,26 +84,27 @@ class Service(models.Model):
         default='processing',
     )
     
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     def save(self, *args, **kwargs):
-        # Create IDManager instance if this is a new object
-        if not hasattr(self, 'id_manager') or self.id_manager is None:
-            id_manager = IDManager.objects.create()
-            self.id_manager = id_manager
+        if not self.shared_id:
+            self.shared_id = IDManager.get_next_id()
+            
+        # Generate service_id if not provided
+        if not self.service_id:
+            self.service_id = f"svc-{str(uuid.uuid4())[:8]}"
             
         # If the payment status is pending, set order status to "waiting_payment"
         if self.payment_status == self.PENDING:
             self.order_status = 'proceed_to_pay'
         super().save(*args, **kwargs)
     
-    # Add a property to get the shared ID
-    @property
-    def shared_id(self):
-        return self.id_manager.id if self.id_manager else None
-    
     def __str__(self):
         return self.title
 
-
+    class Meta:
+        unique_together = ('user', 'title')  # Ensures a user can't have duplicate service titles
     
 class ServiceFile(models.Model):
     # Files linked to the Service (order)

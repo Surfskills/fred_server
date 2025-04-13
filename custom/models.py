@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db import transaction
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 
@@ -7,9 +8,18 @@ from django.contrib.contenttypes.models import ContentType
 class IDManager(models.Model):
     """
     A model to manage the sequence of IDs across multiple models.
-    This serves as a central point for ID generation.
     """
-    # This model just needs to exist to create a sequence
+    last_id = models.PositiveIntegerField(default=0)
+
+    @classmethod
+    def get_next_id(cls):
+        # Use select_for_update to lock the row and prevent race conditions
+        with transaction.atomic():
+            manager, created = cls.objects.select_for_update().get_or_create(pk=1)
+            manager.last_id += 1
+            manager.save()
+            return manager.last_id
+
     class Meta:
         managed = True
 
@@ -57,12 +67,7 @@ class BaseRequest(models.Model):
         ('completed', 'Completed'),
     ]
     
-    # Keep the default id field but also add id_manager for shared sequence
-    id_manager = models.OneToOneField(
-        IDManager,
-        on_delete=models.CASCADE,
-        related_name='%(class)s_manager',
-    )
+    shared_id = models.PositiveIntegerField(unique=True, editable=False)
     
     acceptance_status = models.CharField(
         max_length=15,
@@ -99,21 +104,14 @@ class BaseRequest(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        # Create IDManager instance if this is a new object
-        if not hasattr(self, 'id_manager') or self.id_manager is None:
-            id_manager = IDManager.objects.create()
-            self.id_manager = id_manager
+        if not self.shared_id:
+            self.shared_id = IDManager.get_next_id()
             
         # If the payment status is pending, set order status to proceed_to_pay
         if self.payment_status == self.PENDING:
             self.order_status = 'proceed_to_pay'
             
         super().save(*args, **kwargs)
-        
-    # Add a property to get the shared ID
-    @property
-    def shared_id(self):
-        return self.id_manager.id if self.id_manager else None
 
     class Meta:
         abstract = True

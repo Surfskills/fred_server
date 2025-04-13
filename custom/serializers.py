@@ -1,17 +1,14 @@
 from rest_framework import serializers
-
-from service.models import Service
-from service.serializers import ServiceSerializer
-from .models import SoftwareRequest, ResearchRequest, IDManager
+from .models import SoftwareRequest, ResearchRequest
 
 class BaseRequestSerializer(serializers.ModelSerializer):
-    # Use id as the field name instead of id_manager
-    id = serializers.PrimaryKeyRelatedField(source='id_manager.id', read_only=True)
+    shared_id = serializers.IntegerField(read_only=True)
     
     class Meta:
         abstract = True
         fields = (
-            'id', 
+            'id',
+            'shared_id',
             'title', 
             'project_description',
             'cost',
@@ -24,7 +21,7 @@ class BaseRequestSerializer(serializers.ModelSerializer):
             'updated_at',
             'acceptance_status'
         )
-        read_only_fields = ('user', 'created_at', 'updated_at')
+        read_only_fields = ('user', 'created_at', 'updated_at', 'shared_id')
 
     def validate(self, attrs):
         if not self.context.get('request'):
@@ -32,12 +29,6 @@ class BaseRequestSerializer(serializers.ModelSerializer):
         if not self.context['request'].user:
             raise serializers.ValidationError("User must be authenticated")
         return attrs
-        
-    def create(self, validated_data):
-        # Create a new IDManager instance to get a new primary key
-        id_manager = IDManager.objects.create()
-        validated_data['id_manager'] = id_manager
-        return super().create(validated_data)
 
 class SoftwareRequestSerializer(BaseRequestSerializer):
     class Meta(BaseRequestSerializer.Meta):
@@ -80,11 +71,13 @@ class ResearchRequestSerializer(BaseRequestSerializer):
         validated_data['user'] = self.context['request'].user
         validated_data['request_type'] = 'research'
         return super().create(validated_data)
-    
+
+
+
 class RequestListSerializer(serializers.Serializer):
     # Base fields
     id = serializers.IntegerField()
-    shared_id = serializers.IntegerField(required=False)
+    shared_id = serializers.IntegerField()
     title = serializers.CharField()
     project_description = serializers.CharField()
     cost = serializers.DecimalField(max_digits=10, decimal_places=2)
@@ -97,46 +90,48 @@ class RequestListSerializer(serializers.Serializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
 
     # Software request specific fields
-    budget_range = serializers.CharField(required=False)
-    timeline = serializers.CharField(required=False)
-    frontend_languages = serializers.CharField(required=False)
-    frontend_frameworks = serializers.CharField(required=False)
-    backend_languages = serializers.CharField(required=False)
-    backend_frameworks = serializers.CharField(required=False)
-    ai_languages = serializers.CharField(required=False)
-    ai_frameworks = serializers.CharField(required=False)
+    budget_range = serializers.CharField(required=False, allow_null=True)
+    timeline = serializers.CharField(required=False, allow_null=True)
+    frontend_languages = serializers.CharField(required=False, allow_null=True)
+    frontend_frameworks = serializers.CharField(required=False, allow_null=True)
+    backend_languages = serializers.CharField(required=False, allow_null=True)
+    backend_frameworks = serializers.CharField(required=False, allow_null=True)
+    ai_languages = serializers.CharField(required=False, allow_null=True)
+    ai_frameworks = serializers.CharField(required=False, allow_null=True)
 
     # Research request specific fields
-    academic_writing_type = serializers.CharField(required=False)
-    writing_technique = serializers.CharField(required=False)
-    academic_writing_style = serializers.CharField(required=False)
-    critical_writing_type = serializers.CharField(required=False)
-    critical_thinking_skill = serializers.CharField(required=False)
-    critical_writing_structure = serializers.CharField(required=False)
-    discussion_type = serializers.CharField(required=False)
-    discussion_component = serializers.CharField(required=False)
-    citation_style = serializers.CharField(required=False)
-    number_of_pages = serializers.IntegerField(required=False)
-    number_of_references = serializers.IntegerField(required=False)
-    study_level = serializers.CharField(required=False)
+    academic_writing_type = serializers.CharField(required=False, allow_null=True)
+    writing_technique = serializers.CharField(required=False, allow_null=True)
+    academic_writing_style = serializers.CharField(required=False, allow_null=True)
+    critical_writing_type = serializers.CharField(required=False, allow_null=True)
+    critical_thinking_skill = serializers.CharField(required=False, allow_null=True)
+    critical_writing_structure = serializers.CharField(required=False, allow_null=True)
+    discussion_type = serializers.CharField(required=False, allow_null=True)
+    discussion_component = serializers.CharField(required=False, allow_null=True)
+    citation_style = serializers.CharField(required=False, allow_null=True)
+    number_of_pages = serializers.IntegerField(required=False, allow_null=True)
+    number_of_references = serializers.IntegerField(required=False, allow_null=True)
+    study_level = serializers.CharField(required=False, allow_null=True)
 
     def to_representation(self, instance):
-        if hasattr(instance, 'id_manager'):
-            # For models with id_manager
+        # Handle both model instances and dictionary/values queryset results
+        if isinstance(instance, dict):
+            # For values() queryset results
+            data = instance
+        else:
+            # For model instances
             if isinstance(instance, SoftwareRequest):
                 serializer = SoftwareRequestSerializer(instance)
             elif isinstance(instance, ResearchRequest):
                 serializer = ResearchRequestSerializer(instance)
-            elif isinstance(instance, Service):
-                serializer = ServiceSerializer(instance)
+
+          
             else:
                 return super().to_representation(instance)
-                
             data = serializer.data
-            # Add shared_id if it's missing
-            if 'shared_id' not in data and hasattr(instance, 'id_manager') and instance.id_manager:
-                data['shared_id'] = instance.id_manager.id
-            return data
-        else:
-            # Fall back to default behavior
-            return super().to_representation(instance)
+        
+        # Ensure shared_id is included
+        if 'shared_id' not in data and hasattr(instance, 'shared_id'):
+            data['shared_id'] = instance.shared_id
+            
+        return data

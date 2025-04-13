@@ -67,7 +67,7 @@ class BaseRequest(models.Model):
         ('completed', 'Completed'),
     ]
     
-    shared_id = models.PositiveIntegerField(unique=True, editable=False)
+    shared_id = models.PositiveIntegerField(null=True, blank=True)
     
     acceptance_status = models.CharField(
         max_length=15,

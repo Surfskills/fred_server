@@ -2,15 +2,16 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
-from django.db.models import Q, Value, CharField
-from django.db.models.functions import Cast
+from django.db.models import Value, CharField
+
 from rest_framework.exceptions import PermissionDenied
-from itertools import chain
+
 from .models import SoftwareRequest, ResearchRequest
 from .serializers import (
     SoftwareRequestSerializer,
     ResearchRequestSerializer,
 )
+
 
 class RequestViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]

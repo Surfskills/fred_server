@@ -1,10 +1,7 @@
 import uuid
 from django.conf import settings
 from django.db import models
-from django.db import transaction
-from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
-from django.contrib.contenttypes.models import ContentType
-
+from django.utils import timezone
 from custom.models import IDManager
 
 
@@ -31,7 +28,7 @@ class Service(models.Model):
     features = models.JSONField()  # Stores an array of features
     process_link = models.URLField()
     service_id = models.CharField(max_length=100)
-    shared_id = models.PositiveIntegerField(unique=True, editable=False)
+    shared_id = models.PositiveIntegerField(null=True, blank=True)
     
     # Payment status choices
     PENDING = 'pending'
@@ -84,9 +81,8 @@ class Service(models.Model):
         default='processing',
     )
     
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
-
     def save(self, *args, **kwargs):
         if not self.shared_id:
             self.shared_id = IDManager.get_next_id()

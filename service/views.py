@@ -1,4 +1,3 @@
-from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -54,36 +53,40 @@ class ServiceCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+from rest_framework.exceptions import NotFound
+
 class ServiceDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get_user_service(self, pk, user):
+    def get_user_service_by_shared_id(self, shared_id, user):
         """
-        Helper method to get a service that belongs to the user
+        Helper method to get a service by shared_id that belongs to the user
         """
-        service = get_object_or_404(Service, pk=pk)
+        try:
+            service = Service.objects.get(shared_id=shared_id)
+        except Service.DoesNotExist:
+            raise NotFound("Service not found.")
+
         if service.user != user:
             raise PermissionDenied("You do not have permission to access this service.")
         return service
 
-    def get(self, request, pk):
+    def get(self, request, shared_id):
         """
-        Retrieve a specific service by its ID, ensuring it belongs to the current user.
+        Retrieve a specific service by shared_id, ensuring it belongs to the current user.
         """
-        service = self.get_user_service(pk, request.user)
+        service = self.get_user_service_by_shared_id(shared_id, request.user)
         serializer = ServiceSerializer(service)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def patch(self, request, pk):
+    def patch(self, request, shared_id):
         """
         Partially update a service, ensuring it belongs to the current user.
         """
-        service = self.get_user_service(pk, request.user)
+        service = self.get_user_service_by_shared_id(shared_id, request.user)
         data = request.data
-        
-        # Only update the allowed fields
+
         allowed_fields = ['cost', 'payment_status', 'order_status']
-        
         for field in allowed_fields:
             if field in data:
                 setattr(service, field, data[field])
@@ -92,20 +95,14 @@ class ServiceDetailView(APIView):
         serializer = ServiceSerializer(service)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-def delete(self, request, shared_id):
-    """
-    Delete a specific service by its shared_id, ensuring it belongs to the current user.
-    """
-    try:
-        # Get the service using shared_id instead of primary key
-        service = Service.objects.get(shared_id=shared_id, user=request.user)
-    except Service.DoesNotExist:
-        raise Http404("Service not found or you don't have permission to delete it.")
+    def delete(self, request, shared_id):
+        """
+        Delete a specific service by its shared_id, ensuring it belongs to the current user.
+        """
+        service = self.get_user_service_by_shared_id(shared_id, request.user)
 
-    # Check if the service has a paid payment status
-    if service.payment_status == 'paid':
-        raise PermissionDenied("You cannot delete an order that has been paid.")
+        if service.payment_status == 'paid':
+            raise PermissionDenied("You cannot delete an order that has been paid.")
 
-    # If the payment status is not paid, proceed with deletion
-    service.delete()
-    return Response(status=status.HTTP_204_NO_CONTENT)
+        service.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

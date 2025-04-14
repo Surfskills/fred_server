@@ -8,6 +8,7 @@ urlpatterns = [
     # Service listing (GET request)
     path('list/', ServiceListView.as_view(), name='service-list'),
     
-    # Service detail (GET, PATCH, DELETE requests using shared_id)
+    # Service detail (GET, PATCH, DELETE requests using the global primary key)
+        # Service detail (GET, PATCH, DELETE using shared_id)
     path('<str:shared_id>/', ServiceDetailView.as_view(), name='service-detail'),
 ]

@@ -1,6 +1,7 @@
 import uuid
 from rest_framework import serializers
-from models import Service
+from .models import Service
+
 
 class ServiceSerializer(serializers.ModelSerializer):
     shared_id = serializers.IntegerField(read_only=True)

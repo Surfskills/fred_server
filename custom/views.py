@@ -1,3 +1,4 @@
+from django.http import Http404
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -177,10 +178,14 @@ class RequestViewSet(viewsets.ViewSet):
         if instance.payment_status == 'paid':
             raise PermissionDenied("Cannot delete a paid order. Please contact support if you need assistance.")
         return True
-    
-    def destroy(self, request, pk=None):
-        """Delete a specific request if it hasn't been paid for"""
-        instance, _ = self.get_object(pk)
+
+    def destroy(self, request, shared_id=None):
+        """Delete a specific request by shared_id if it hasn't been paid for"""
+        try:
+            # Get the instance using shared_id instead of pk
+            instance = self.queryset.get(shared_id=shared_id)
+        except self.queryset.model.DoesNotExist:
+            raise Http404("Request not found")
         
         # Check if the request can be deleted
         self.can_delete_request(instance)

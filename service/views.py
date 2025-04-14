@@ -1,3 +1,4 @@
+from django.http import Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -91,16 +92,20 @@ class ServiceDetailView(APIView):
         serializer = ServiceSerializer(service)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    def delete(self, request, pk):
-        """
-        Delete a specific service by its ID, ensuring it belongs to the current user.
-        """
-        service = self.get_user_service(pk, request.user)
+def delete(self, request, shared_id):
+    """
+    Delete a specific service by its shared_id, ensuring it belongs to the current user.
+    """
+    try:
+        # Get the service using shared_id instead of primary key
+        service = Service.objects.get(shared_id=shared_id, user=request.user)
+    except Service.DoesNotExist:
+        raise Http404("Service not found or you don't have permission to delete it.")
 
-        # Check if the service has a paid payment status
-        if service.payment_status == 'paid':
-            raise PermissionDenied("You cannot delete an order that has been paid.")
+    # Check if the service has a paid payment status
+    if service.payment_status == 'paid':
+        raise PermissionDenied("You cannot delete an order that has been paid.")
 
-        # If the payment status is not paid, proceed with deletion
-        service.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    # If the payment status is not paid, proceed with deletion
+    service.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)

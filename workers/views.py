@@ -8,7 +8,7 @@ from django.utils import timezone
 from service.models import Service, ServiceFile
 from custom.models import IDManager, ResearchRequestFile, SoftwareRequest, ResearchRequest, SoftwareRequestFile
 from .models import AcceptedOffer
-from .serializers import AcceptedOfferSerializer
+from .serializers import AcceptedOfferSerializer, AcceptedOfferCreateSerializer
 from service.serializers import ServiceSerializer
 from custom.serializers import SoftwareRequestSerializer, ResearchRequestSerializer
 from rest_framework.exceptions import NotFound
@@ -97,73 +97,78 @@ class AvailableOffersViewSet(viewsets.ViewSet):
             return Response({"detail": "Offer not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
-
 class AcceptOfferView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        shared_id = request.data.get('offer_id')  # Now using shared_id (IDManager's ID)
-
+        shared_id = request.data.get('shared_id')  # Now using shared_id (IDManager's ID)
         if not shared_id:
             return Response({"detail": "Offer ID is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            # Get the IDManager instance
-            id_manager = IDManager.objects.get(id=shared_id)
-        except IDManager.DoesNotExist:
-            return Response({"detail": "Offer not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        # Find the linked model instance
+        # Try to find the offer by shared_id
         offer = None
         offer_type = None
-        try:
-            offer = id_manager.service_manager
+        
+        # Check Service
+        service = Service.objects.filter(shared_id=shared_id).first()
+        if service:
+            offer = service
             offer_type = 'service'
-        except Service.DoesNotExist:
-            try:
-                offer = id_manager.softwarerequest_manager
+        else:
+            # Check SoftwareRequest
+            software_request = SoftwareRequest.objects.filter(shared_id=shared_id).first()
+            if software_request:
+                offer = software_request
                 offer_type = 'software'
-            except SoftwareRequest.DoesNotExist:
-                try:
-                    offer = id_manager.researchrequest_manager
+            else:
+                # Check ResearchRequest
+                research_request = ResearchRequest.objects.filter(shared_id=shared_id).first()
+                if research_request:
+                    offer = research_request
                     offer_type = 'research'
-                except ResearchRequest.DoesNotExist:
-                    return Response({"detail": "Offer not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        if not offer:
+            return Response({"detail": "Offer not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if offer is already accepted
+        if offer.acceptance_status == 'accepted':
+            return Response(
+                {"detail": "This offer has already been accepted."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Update acceptance status
         offer.acceptance_status = 'accepted'
         offer.save()
 
-        # Serialize data based on offer type
-        if offer_type == 'service':
-            original_data = ServiceSerializer(offer).data
-        elif offer_type == 'software':
-            original_data = SoftwareRequestSerializer(offer).data
-        else:
-            original_data = ResearchRequestSerializer(offer).data
-        original_data['offer_type'] = offer_type
-
         # Create AcceptedOffer
-        field_mapping = {
-            'service': 'service',
-            'software': 'software_request',
-            'research': 'research_request'
+        accepted_offer_data = {
+            'user': request.user.id,
+            'offer_type': offer_type,
+            'acceptance_status': 'accepted',
+            'payment_status': offer.payment_status,
+            'order_status': offer.order_status,
+            'cost': offer.cost
         }
 
-        accepted_offer = AcceptedOffer.objects.create(
-            user=request.user,
-            **{field_mapping[offer_type]: offer},  # Correctly map the field name
-            status='accepted',
-            accepted_at=timezone.now(),
-            offer_type=offer_type,
-            original_data=original_data
-        )
+        # Set the appropriate foreign key based on offer type
+        if offer_type == 'service':
+            accepted_offer_data['service'] = offer.id
+        elif offer_type == 'software':
+            accepted_offer_data['software_request'] = offer.id
+        elif offer_type == 'research':
+            accepted_offer_data['research_request'] = offer.id
 
+        serializer = AcceptedOfferCreateSerializer(data=accepted_offer_data)
+        if serializer.is_valid():
+            accepted_offer = serializer.save()
+            return Response({
+                "detail": "Offer accepted successfully.",
+                "accepted_offer": AcceptedOfferSerializer(accepted_offer).data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({
-            "detail": "Offer accepted successfully.",
-            "accepted_offer_id": accepted_offer.id
-        }, status=status.HTTP_201_CREATED)
 
 class AcceptedOffersViewSet(viewsets.ViewSet):
     """
@@ -197,12 +202,14 @@ class ReturnOfferView(APIView):
         except AcceptedOffer.DoesNotExist:
             raise NotFound("Offer not found")
 
-        if accepted_offer.status not in ['accepted', 'in_progress']:
-            return Response({"detail": "Only accepted or in-progress offers can be returned."},
-                            status=status.HTTP_400_BAD_REQUEST)
+        if accepted_offer.acceptance_status not in ['accepted', 'in_progress']:
+            return Response(
+                {"detail": "Only accepted or in-progress offers can be returned."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Update the AcceptedOffer status
-        accepted_offer.status = 'returned'
+        accepted_offer.acceptance_status = 'returned'
         accepted_offer.returned_at = timezone.now()
         accepted_offer.save()
 
@@ -236,13 +243,13 @@ class CompleteOfferView(APIView):
             raise NotFound("Offer not found")
 
         # Allow offers that are either in_progress or accepted to be completed
-        if accepted_offer.status not in ['in_progress', 'accepted']:
+        if accepted_offer.acceptance_status not in ['in_progress', 'accepted']:
             return Response(
                 {"detail": "Only in-progress or accepted offers can be completed."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        accepted_offer.status = 'completed'
+        accepted_offer.acceptance_status = 'completed'
         accepted_offer.completed_at = timezone.now()
         accepted_offer.save()
 
@@ -270,11 +277,15 @@ class StartWorkOnOfferView(APIView):
 
     def post(self, request, pk):
         try:
-            accepted_offer = AcceptedOffer.objects.get(id=pk, user=request.user, status='accepted')
+            accepted_offer = AcceptedOffer.objects.get(
+                id=pk, 
+                user=request.user, 
+                acceptance_status='accepted'
+            )
         except AcceptedOffer.DoesNotExist:
             raise NotFound("Offer not found or already started")
 
-        accepted_offer.status = 'in_progress'
+        accepted_offer.acceptance_status = 'in_progress'
         accepted_offer.started_at = timezone.now()
         accepted_offer.save()
 
@@ -289,11 +300,9 @@ class MultiFileUploadAPIView(APIView):
         - object_id: The primary key of the object to attach files to
         - files: one or more files
     """
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, format=None):
-        # Print request data for debugging (you can remove this in production)
-        print("Request data:", request.data)
-        
         # Get the required parameters from the request
         upload_type = request.data.get('upload_type')
         object_id = request.data.get('object_id')

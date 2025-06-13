@@ -29,21 +29,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # Database configuration
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,
-        ssl_require=True,
-        engine='django.db.backends.postgresql_psycopg2',  # Explicit engine
-    )
-}
-
 # DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',  # SQLite database file stored in the project root
-#     }
+#     'default': dj_database_url.config(
+#         default=os.environ.get('DATABASE_URL'),
+#         conn_max_age=600,
+#         ssl_require=True,
+#         engine='django.db.backends.postgresql_psycopg2',  # Explicit engine
+#     )
 # }
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',  # SQLite database file stored in the project root
+    }
+}
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -64,6 +64,7 @@ APPEND_SLASH = False
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
+    'django_filters',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
@@ -73,12 +74,15 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_extensions',
     'authentication.apps.AuthenticationConfig', 
-    'service',
+     'freelancers',
     'custom',
     'channels',
     'chat',
-    'workers',
-    'analytics',
+    'uni_services',
+    'documents_management',
+    'support',
+    'resources',
+    'payouts',
 
 ]
 
@@ -110,7 +114,9 @@ ROOT_URLCONF = 'fred.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [
+             os.path.join(BASE_DIR, 'templates'),
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -124,12 +130,23 @@ TEMPLATES = [
 ]
 # JWT Settings
 REST_FRAMEWORK = {
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
     ),
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
 }
-
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Token expires in 60 minutes
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),     # Refresh token expires in 1 day
@@ -154,14 +171,14 @@ SIMPLE_JWT = {
 # CORS_ALLOWED_ORIGINS = [
 #     "http://localhost:3000",  # Your Next.js frontend URL
 # ]
-
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "https://workers-dashboard.vercel.app",
 ]
 ALLOWED_HOSTS = ['*']
 
-CORS_ALLOW_ALL_ORIGINS = True
+
 
 WSGI_APPLICATION = 'fred.wsgi.application'
 

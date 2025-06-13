@@ -1,0 +1,169 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block title %}{% trans 'Add Service' %} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+&rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+&rsaquo; {% trans 'Add' %} {{ opts.verbose_name }}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>{% trans 'Add Service' %}</h1>
+
+<div class="polymorphic-type-selection">
+    <div class="form-row">
+        <div class="field-box">
+            <h2>{% trans "Choose the type of service to create:" %}</h2>
+            {% if polymorphic_forms %}
+                <div class="service-type-grid">
+                    {% for form_info in polymorphic_forms %}
+                        <div class="service-type-card">
+                            <a href="{{ form_info.url }}" class="service-type-link">
+                                <div class="service-icon">
+                                    {% if 'software' in form_info.title|lower %}
+                                        💻
+                                    {% elif 'research' in form_info.title|lower %}
+                                        📚
+                                    {% elif 'custom' in form_info.title|lower %}
+                                        ⚙️
+                                    {% else %}
+                                        📋
+                                    {% endif %}
+                                </div>
+                                <h3>{{ form_info.title }}</h3>
+                                <p class="service-description">
+                                    {% if 'software' in form_info.title|lower %}
+                                        Create software development services with frontend, backend, and AI technologies
+                                    {% elif 'research' in form_info.title|lower %}
+                                        Create academic research and writing services
+                                    {% elif 'custom' in form_info.title|lower %}
+                                        Create custom services with flexible configurations
+                                    {% else %}
+                                        Create a new service
+                                    {% endif %}
+                                </p>
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="help">{% trans "No service types available." %}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        .polymorphic-type-selection {
+            margin: 20px 0;
+            padding: 30px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .service-type-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .service-type-card {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .service-type-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transition: left 0.5s;
+        }
+        
+        .service-type-card:hover {
+            border-color: #007cba;
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .service-type-card:hover::before {
+            left: 100%;
+        }
+        
+        .service-type-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .service-type-link:hover {
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .service-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+            display: block;
+        }
+        
+        .service-type-card h3 {
+            color: #007cba;
+            margin: 15px 0 10px 0;
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+        
+        .service-description {
+            color: #6c757d;
+            font-size: 0.95em;
+            line-height: 1.4;
+            margin: 0;
+        }
+        
+        .field-box h2 {
+            color: #495057;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: 300;
+        }
+        
+        #content h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        @media (max-width: 768px) {
+            .service-type-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .polymorphic-type-selection {
+                padding: 20px;
+            }
+        }
+    </style>
+{% endblock %}

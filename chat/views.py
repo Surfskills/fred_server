@@ -1,18 +1,21 @@
+from django.db import models
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.auth import get_user_model
 from rest_framework import viewsets, status, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from django.contrib.contenttypes.models import ContentType
-from authentication.models import User
-from .serializers import ChatRoomSerializer
-from .models import ChatRoom, Message
 from django.core.exceptions import ObjectDoesNotExist
-from service.models import Service
-from custom.models import SoftwareRequest, ResearchRequest
 from django.db.models import Q, Max
 import logging
 
+from authentication.models import User
+from chat.models import ChatRoom
+from chat.serializers import ChatRoomSerializer
+from uni_services.models import BaseService
+from .models import ChatRoom, Message
 # Set up logger for debugging
 logger = logging.getLogger(__name__)
+
 
 class IsAdminOrClientOwner(permissions.BasePermission):
     """
@@ -222,23 +225,18 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         Dynamically determine the content type based on the object_id.
         """
         try:
-            # Check if object_id corresponds to SoftwareRequest model
-            software_request = SoftwareRequest.objects.filter(id=object_id).first()
-            if software_request:
-                logger.info(f"Object {object_id} identified as SoftwareRequest")
-                return ContentType.objects.get_for_model(SoftwareRequest)
+            # Get all models that inherit from BaseService
+            from django.apps import apps
+            base_service_models = [
+                model for model in apps.get_models() 
+                if issubclass(model, BaseService) and model != BaseService
+            ]
             
-            # Check if object_id corresponds to ResearchRequest model
-            research_request = ResearchRequest.objects.filter(id=object_id).first()
-            if research_request:
-                logger.info(f"Object {object_id} identified as ResearchRequest")
-                return ContentType.objects.get_for_model(ResearchRequest)
-            
-            # Check if object_id corresponds to Service model
-            service = Service.objects.filter(id=object_id).first()
-            if service:
-                logger.info(f"Object {object_id} identified as Service")
-                return ContentType.objects.get_for_model(Service)
+            # Check each model for the object_id
+            for model in base_service_models:
+                if model.objects.filter(id=object_id).exists():
+                    logger.info(f"Object {object_id} identified as {model.__name__}")
+                    return ContentType.objects.get_for_model(model)
 
             logger.error(f"No matching content type found for object_id: {object_id}")
             return None

@@ -20,10 +20,13 @@ DEMO = [
         'tier': 'native',
         'email': 'demo.native@gigshub.local',
         'first_name': 'Ada',
-        'last_name': 'WeDemo',
-        'display_name': 'Ada W.',
-        'title': 'Product design & systems',
-        'bio': 'WeDemo Africa pathway — public catalog, rare product craft.',
+        'last_name': 'Mwangi',
+        'display_name': 'Ada M.',
+        'title': 'Product depth · selective partner intake · niche craft',
+        'bio': (
+            'Native on GigsHub — cleared selective gates coordinated with implementing partners; concentrates rare product '
+            'skills in narrow lanes before catalog exposure.'
+        ),
         'skills': ['Figma', 'Design systems', 'UX research'],
         'portfolio': ['Mobile banking UX', 'Design tokens library', 'Onboarding flows'],
     },
@@ -33,8 +36,11 @@ DEMO = [
         'first_name': 'Marcus',
         'last_name': 'Chen',
         'display_name': 'Marcus C.',
-        'title': 'Enterprise integrations',
-        'bio': 'Corporate-alumni track — ERP, APIs, and compliance-heavy delivery.',
+        'title': 'Cloud & platform integrations (ex-big tech)',
+        'bio': (
+            'Dynamic — implementing-partner certification (WeDemo Africa) completed before claiming this tier; '
+            'ex-hyperscale alum blending corporate depth with independent delivery.'
+        ),
         'skills': ['Python', 'PostgreSQL', 'Kafka'],
         'portfolio': ['SAP connector', 'Event-driven payroll', 'Audit pipelines'],
     },
@@ -44,8 +50,11 @@ DEMO = [
         'first_name': 'Sofia',
         'last_name': 'Reyes',
         'display_name': 'Sofia R.',
-        'title': 'Premium strategy & delivery',
-        'bio': 'Demers Room — elevated placement, strict access, senior outcomes.',
+        'title': 'Strategy & architecture · private-practice technocrat',
+        'bio': (
+            'Demers — prerequisite certification from implementing partner satisfied; elite technocrat with historically '
+            'private-practice work under strict senior access on GigsHub.'
+        ),
         'skills': ['Program management', 'Technical writing', 'Stakeholder alignment'],
         'portfolio': ['Zero-downtime migration', 'Exec readouts', 'Vendor selection'],
     },

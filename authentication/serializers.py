@@ -59,6 +59,8 @@ class SignUpSerializer(serializers.ModelSerializer):
 class CapabilityUpgradeSerializer(serializers.Serializer):
     """
     Self-service capability upgrades for the current account.
+    Freelancer tier upgrades on GigsHub: Native reflects selective intake coordinated with implementing partners (e.g. niche craftsmanship).
+    Dynamic and Demers: finish implementing partner certifications (WeDemo Africa) before claiming those tiers—GigsHub aligns policy only; partners run their own programmes.
     """
 
     capability = serializers.ChoiceField(
@@ -66,9 +68,18 @@ class CapabilityUpgradeSerializer(serializers.Serializer):
             ("client", "Client"),
             ("support", "Support"),
             ("admin", "Admin"),
-            ("native", "Native"),
-            ("dynamic", "Dynamic"),
-            ("demer", "Demer"),
+            (
+                "native",
+                "Native — Partner-selective intake · rare niche skills (operators on GigsHub)",
+            ),
+            (
+                "dynamic",
+                "Dynamic — Implementing-partner certification on file · enterprise / big-tech (ex or current) + freelance",
+            ),
+            (
+                "demer",
+                "Demers — Partner certification prerequisite · technocrats (elite private practice)",
+            ),
         )
     )
 

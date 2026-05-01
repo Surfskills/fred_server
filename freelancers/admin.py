@@ -42,6 +42,7 @@ class FreelancerAdmin(admin.ModelAdmin):
         'user_email',
         'freelancer_type',
         'experience_level',
+        'marketplace_tier',
         'availability_badge',
         'hourly_rate',
         'rating_display',
@@ -54,6 +55,7 @@ class FreelancerAdmin(admin.ModelAdmin):
     list_filter = [
         'freelancer_type',
         'experience_level',
+        'marketplace_tier',
         'is_available',
         'availability_status',
         'is_profile_verified',
@@ -98,6 +100,7 @@ class FreelancerAdmin(admin.ModelAdmin):
             'fields': (
                 'freelancer_type',
                 'experience_level',
+                'marketplace_tier',
                 'skills',
                 'specializations',
                 'languages',

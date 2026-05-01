@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../../React_projects/task-management-platform"
+		},
+		{
+			"path": "../gigs-hub-ai-engine-api"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {}
+}

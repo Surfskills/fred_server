@@ -29,9 +29,9 @@ class TenantKind(models.TextChoices):
     """Active tenancy context for JWT + row-level scoping."""
 
     USER = "user", "User"
-    NATIVE = "native", "Native"
-    DYNAMIC = "dynamic", "Dynamic"
-    DEMER = "demer", "Demer"
+    NATIVE = "native", "Native (partner-selective intake · rare niche skills)"
+    DYNAMIC = "dynamic", "Dynamic (implementing-partner certification · enterprise / big-tech alum + freelance)"
+    DEMER = "demer", "Demers (partner certification prerequisite · technocrats · private practice)"
     ORGANIZATION = "organization", "Organization"
 
 
@@ -115,7 +115,13 @@ class UserEntitlement(models.Model):
     )
     flags = models.JSONField(
         default=dict,
-        help_text='e.g. {"base": true, "native": true, "dynamic": false, "demer": false}',
+        help_text=(
+            'Additive capability keys, e.g. {"base": true, "native": true, "dynamic": false, "demer": false}. '
+            'native = partner-coordinated scarce intake signalling niche craft on GigsHub; '
+            'dynamic = implementing-partner certifications (policy cites WeDemo Africa) before claiming tier; '
+            'then enterprise / big-tech alum + freelance; '
+            'demer = same partner prerequisites as policy requires; technocrats practising privately.'
+        ),
     )
     primary_organization = models.ForeignKey(
         Organization,

@@ -49,9 +49,18 @@ class Freelancer(models.Model):
     )
 
     MARKETPLACE_TIER_CHOICES = (
-        ('native', 'Native'),
-        ('dynamic', 'Dynamic'),
-        ('demer', 'Demers Room'),
+        (
+            'native',
+            'Native — Partner-selective intake · rare niche skills',
+        ),
+        (
+            'dynamic',
+            'Dynamic — Implementing-partner certification · enterprise / big-tech + freelance',
+        ),
+        (
+            'demer',
+            'Demers — Partner certification prerequisite · technocrats (private practice)',
+        ),
     )
 
     # Primary fields
@@ -74,7 +83,15 @@ class Freelancer(models.Model):
         max_length=20,
         choices=MARKETPLACE_TIER_CHOICES,
         default='native',
-        help_text='Native / Dynamic / Demers — marketplace track (separate from freelancer_type skill category).',
+        help_text=(
+            'Skills Network tier on GigsHub (distinct from freelancer_type). WeDemo Africa and other programmes are '
+            'strategic implementing partners when policies reference certifications or intakes they run—those partners do '
+            'not operate this platform. Native: scarcity driven by selective intakes coordinated with partners; surfaces '
+            'operators with rare niche skills and sound judgement before catalog exposure here. Dynamic and Demers: apply only '
+            'after completing implementing partner certification (e.g. WeDemo Africa) as their programme prescribes—GigsHub '
+            'enforces policy alignment for the track only. Dynamic: major-enterprise alumni freelancing alongside that arc. '
+            'Demers: private-practice technocrats; invitation or upgrade after prerequisites.'
+        ),
     )
     
     # Skills and expertise
@@ -423,9 +440,15 @@ class BaseService(PolymorphicModel):
 
     POSTING_TENANT_KIND_CHOICES = (
         ("user", "User"),
-        ("native", "Native"),
-        ("dynamic", "Dynamic"),
-        ("demer", "Demer"),
+        ("native", "Native (partner-selective intake · rare niche skills)"),
+        (
+            "dynamic",
+            "Dynamic (partner certification prerequisite · enterprise / big-tech alum + freelance)",
+        ),
+        (
+            "demer",
+            "Demers (partner certification prerequisite · technocrats · elite private practice)",
+        ),
         ("organization", "Organization"),
     )
     posting_tenant_kind = models.CharField(

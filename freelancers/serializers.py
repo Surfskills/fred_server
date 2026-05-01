@@ -174,7 +174,11 @@ class FreelancerStatusUpdateSerializer(serializers.ModelSerializer):
 
 
 class SetMarketplaceTierSerializer(serializers.Serializer):
-    """Self-service: set or upgrade marketplace_tier (single track per freelancer)."""
+    """
+    Self-service: set or upgrade Skills Network tier (exclusive native | dynamic | demer) on GigsHub.
+    Native: selective intakes coordinated with implementing partners—not everyone lists at this scarcity.
+    Dynamic & Demers: complete implementing-partner certifications (product policy cites WeDemo Africa) before claiming the tier—then track-specific eligibility.
+    """
 
     marketplace_tier = serializers.ChoiceField(choices=Freelancer.MARKETPLACE_TIER_CHOICES)
 

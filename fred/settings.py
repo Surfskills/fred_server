@@ -183,7 +183,7 @@ ALLOWED_HOSTS = ['*']
 
 WSGI_APPLICATION = 'fred.wsgi.application'
 
-ASGI_APPLICATION = 'fred.routing.application'
+ASGI_APPLICATION = 'fred.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

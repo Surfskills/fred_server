@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status, filters
+from rest_framework import viewsets, status, filters, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
@@ -16,6 +16,7 @@ from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
 import random
+import requests
 from authentication.models import User
 
 # views.py
@@ -27,22 +28,26 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
+from tenancy.context import get_request_claims
+
 from .models import (
-    BaseService, SoftwareService, ResearchService, CustomService, 
-    ServiceFile, Freelancer, OrderStatusHistory, Bid
+    BaseService, SoftwareService, ResearchService, CustomService,
+    ServiceFile, Freelancer, OrderStatusHistory, Bid,
+    ProjectWorkspace, ProjectWorkspaceInvite,
 )
 from .serializers import (
     BaseServiceSerializer, ServiceListSerializer, BaseServiceCreateSerializer,
-    SoftwareServiceSerializer, SoftwareServiceCreateSerializer,
-    ResearchServiceSerializer, ResearchServiceCreateSerializer,
-    CustomServiceSerializer, CustomServiceCreateSerializer,
-    OrderAssignmentSerializer, OrderStatusUpdateSerializer, 
+    SoftwareServiceSerializer,
+    ResearchServiceSerializer,
+    CustomServiceSerializer,
+    OrderAssignmentSerializer, OrderStatusUpdateSerializer,
     ServicePaymentUpdateSerializer, OrderActionSerializer,
     ServiceFileSerializer, ServiceFileUploadSerializer,
 
     OrderCommentSerializer, OrderCommentCreateSerializer,
-    OrderStatusHistorySerializer, OrderStatsSerializer, 
-   BidSerializer, BidCreateSerializer
+    OrderStatusHistorySerializer, OrderStatsSerializer,
+    BidSerializer, BidCreateSerializer,
+    ProjectWorkspaceInviteSerializer,
 )
 
 
@@ -66,13 +71,16 @@ class BasePermissionMixin:
             return True
         if service.user == request.user:
             return True
-        
-        # Check if user is a freelancer and assigned to this service
+
         if request.user.is_freelancer:
-            # Assuming your BaseService model has an assigned_to field that references User
-            if hasattr(service, 'assigned_to') and service.assigned_to == request.user:
+            assigned = getattr(service, 'assigned_to', None)
+            if assigned is not None and getattr(assigned, 'user_id', None) == request.user.id:
                 return True
         return False
+
+    def check_ai_analysis_permission(self, request, order):
+        """View or run AI analysis: project owner, staff, or assigned/invited freelancer only."""
+        return self.check_service_permission(request, order)
 
 class BaseServiceActionMixin:
     """Handles common service actions - Updated for your User model"""
@@ -127,7 +135,8 @@ class BaseServiceActionMixin:
 
 # Filter classes
 class BaseServiceFilter(django_filters.FilterSet):
-    service_type = django_filters.CharFilter(field_name='service_type')
+    category = django_filters.CharFilter(field_name='category')
+    service_type = django_filters.CharFilter(field_name='category')
     status = django_filters.CharFilter(field_name='status') 
     payment_status = django_filters.CharFilter(field_name='payment_status')
     order_status = django_filters.CharFilter(field_name='order_status')
@@ -139,7 +148,7 @@ class BaseServiceFilter(django_filters.FilterSet):
     
     class Meta:
         model = BaseService
-        fields = ['service_type', 'status', 'payment_status', 'order_status', 'acceptance_status', 'priority']
+        fields = ['category', 'service_type', 'status', 'payment_status', 'order_status', 'acceptance_status', 'priority']
 
     def filter_overdue(self, queryset, name, value):
         if value:
@@ -160,7 +169,7 @@ class BaseServiceViewSet(BasePermissionMixin, BaseServiceActionMixin, viewsets.M
     queryset = BaseService.objects.select_related('user', 'assigned_to').prefetch_related('files', 'bids', 'comments')
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['title', 'description', 'user__username', 'user__email', 'id']
+    search_fields = ['title', 'description', 'user__email', 'id']
     ordering_fields = ['created_at', 'updated_at', 'cost', 'title', 'deadline', 'priority']
     ordering = ['-created_at']
 
@@ -186,15 +195,7 @@ class BaseServiceViewSet(BasePermissionMixin, BaseServiceActionMixin, viewsets.M
         return serializer_map.get(self.action, BaseServiceSerializer)
 
     def get_create_serializer(self):
-        service_type = self.request.data.get('service_type', '')
-        create_serializers = {
-            'software': SoftwareServiceCreateSerializer,
-            'development': SoftwareServiceCreateSerializer,
-            'research': ResearchServiceCreateSerializer,
-            'writing': ResearchServiceCreateSerializer,
-            'custom': CustomServiceCreateSerializer,
-        }
-        return create_serializers.get(service_type, BaseServiceCreateSerializer)
+        return BaseServiceCreateSerializer
 
     def get_queryset(self):
         """
@@ -221,11 +222,22 @@ class BaseServiceViewSet(BasePermissionMixin, BaseServiceActionMixin, viewsets.M
             if self.request.user.is_staff or self.request.user.is_admin:
                 pass  # No filtering needed
             elif self.request.user.is_freelancer:
-                # Freelancer can see their assigned tasks and available tasks for bidding
+                # Freelancers only see:
+                # 1. Projects they posted themselves
+                # 2. Projects assigned directly to them
+                # 3. Projects they have a workspace invite for (pending or accepted)
+                # Projects are NOT globally visible — clients control who can see their listings.
+                workspace_invited = Q(
+                    workspace__invites__freelancer__user=self.request.user,
+                    workspace__invites__status__in=[
+                        ProjectWorkspaceInvite.Status.PENDING,
+                        ProjectWorkspaceInvite.Status.ACCEPTED,
+                    ],
+                )
                 queryset = queryset.filter(
-                    Q(user=self.request.user) | 
-                    Q(assigned_to__user=self.request.user) |  # Updated to handle Freelancer model
-                    Q(status='available')  # Available for bidding
+                    Q(user=self.request.user) |
+                    Q(assigned_to__user=self.request.user) |
+                    workspace_invited
                 ).distinct()
             else:
                 # Regular clients can only see their own services
@@ -236,10 +248,9 @@ class BaseServiceViewSet(BasePermissionMixin, BaseServiceActionMixin, viewsets.M
         if status_param:
             queryset = queryset.filter(status=status_param)
         
-        # Handle service_type filtering
-        service_type = self.request.query_params.get('service_type', None)
-        if service_type:
-            queryset = queryset.filter(service_type=service_type)
+        category = self.request.query_params.get('category') or self.request.query_params.get('service_type')
+        if category:
+            queryset = queryset.filter(category=category)
         
         # Handle freelancer filtering (for admin views)
         freelancer_id = self.request.query_params.get('freelancer', None)
@@ -275,19 +286,235 @@ class BaseServiceViewSet(BasePermissionMixin, BaseServiceActionMixin, viewsets.M
         return queryset
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        claims = get_request_claims(self.request)
+        tenant_kind = claims.get('tenant_kind') or 'user'
+        tenant_id = claims.get('tenant_id') or str(self.request.user.pk)
+        serializer.save(
+            user=self.request.user,
+            posting_tenant_kind=tenant_kind,
+            posting_tenant_id=str(tenant_id),
+        )
 
     def create(self, request, *args, **kwargs):
-        if not request.data.get('service_type'):
-            return Response({'service_type': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
+        if not (request.data.get('category') or request.data.get('service_type')):
+            return Response(
+                {
+                    'category': ['This field is required. Send `category`, or deprecated `service_type`.'],
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        instance = serializer.save(user=request.user)
-        
+        self.perform_create(serializer)
+        instance = serializer.instance
+
         return_serializer = BaseServiceSerializer(instance, context={'request': request})
         headers = self.get_success_headers(serializer.data)
+
+        from uni_services.integrations.ai_engine import trigger_project_analysis
+
+        trigger_project_analysis(request, instance)
+
         return Response(return_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=True, methods=['post'], url_path='ai-analyze')
+    def ai_analyze(self, request, pk=None):
+        """Run (or re-run) AI skill extraction + freelancer matching for this project."""
+        order = self.get_object()
+        if not self.check_ai_analysis_permission(request, order):
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        from uni_services.integrations import ai_engine as ai_engine_mod
+
+        if not ai_engine_mod.ai_engine_configured():
+            return Response(
+                {
+                    'detail': 'AI engine is not configured. Set GIGSHUB_AI_ENGINE_URL and GIGSHUB_AI_API_KEY.',
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        payload = ai_engine_mod.build_project_analyze_payload(request, order)
+        try:
+            r = ai_engine_mod.post_project_analyze_to_engine(payload)
+        except RuntimeError:
+            return Response(
+                {'detail': 'AI engine is not configured.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except requests.RequestException as e:
+            return Response({'detail': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        if not r.ok:
+            try:
+                body = r.json()
+            except Exception:
+                body = {'detail': r.text[:2000]}
+            return Response(
+                body,
+                status=r.status_code if r.status_code < 500 else status.HTTP_502_BAD_GATEWAY,
+            )
+        try:
+            return Response(r.json(), status=status.HTTP_200_OK)
+        except ValueError:
+            return Response({'detail': 'Invalid JSON from AI engine'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=True, methods=['get'], url_path='ai-analysis')
+    def ai_analysis(self, request, pk=None):
+        """Return cached AI analysis from the engine (GET without re-running the model)."""
+        order = self.get_object()
+        if not self.check_ai_analysis_permission(request, order):
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        from uni_services.integrations import ai_engine as ai_engine_mod
+
+        if not ai_engine_mod.ai_engine_configured():
+            return Response(
+                {
+                    'detail': 'AI engine is not configured. Set GIGSHUB_AI_ENGINE_URL and GIGSHUB_AI_API_KEY.',
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        try:
+            r = ai_engine_mod.get_project_analysis_from_engine(order.id)
+        except RuntimeError:
+            return Response(
+                {'detail': 'AI engine is not configured.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except requests.RequestException as e:
+            return Response({'detail': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        if r.status_code == 404:
+            try:
+                body = r.json()
+            except Exception:
+                body = {'detail': r.text[:500]}
+            return Response(body, status=status.HTTP_404_NOT_FOUND)
+        if not r.ok:
+            try:
+                body = r.json()
+            except Exception:
+                body = {'detail': r.text[:2000]}
+            return Response(
+                body,
+                status=r.status_code if r.status_code < 500 else status.HTTP_502_BAD_GATEWAY,
+            )
+        try:
+            return Response(r.json(), status=status.HTTP_200_OK)
+        except ValueError:
+            return Response({'detail': 'Invalid JSON from AI engine'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    def _can_manage_project_workspace(self, request, order):
+        return bool(request.user.is_staff or order.user_id == request.user.id)
+
+    @action(detail=True, methods=['get'], url_path='project-workspace')
+    def project_workspace(self, request, pk=None):
+        """Workspace metadata and invites for the project owner, or a freelancer's own invites."""
+        order = self.get_object()
+        user = request.user
+        try:
+            workspace = order.workspace
+        except ProjectWorkspace.DoesNotExist:
+            workspace = None
+
+        if self._can_manage_project_workspace(request, order):
+            if workspace is None:
+                return Response(
+                    {
+                        'workspace_id': None,
+                        'project_id': order.id,
+                        'owner_id': order.user_id,
+                        'invites': [],
+                    }
+                )
+            invites = (
+                workspace.invites.select_related('freelancer', 'freelancer__user', 'invited_by')
+                .order_by('-created_at')
+            )
+            ser = ProjectWorkspaceInviteSerializer(invites, many=True, context={'request': request})
+            return Response(
+                {
+                    'workspace_id': str(workspace.id),
+                    'project_id': order.id,
+                    'owner_id': order.user_id,
+                    'invites': ser.data,
+                }
+            )
+
+        if user.is_freelancer:
+            try:
+                fl = Freelancer.objects.get(user=user)
+            except Freelancer.DoesNotExist:
+                return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+            if workspace is None:
+                return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+            my_invites = (
+                workspace.invites.select_related('freelancer', 'freelancer__user', 'invited_by')
+                .filter(freelancer=fl)
+                .order_by('-created_at')
+            )
+            if not my_invites.exists():
+                return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+            ser = ProjectWorkspaceInviteSerializer(my_invites, many=True, context={'request': request})
+            return Response(
+                {
+                    'workspace_id': str(workspace.id),
+                    'project_id': order.id,
+                    'owner_id': order.user_id,
+                    'invites': ser.data,
+                }
+            )
+        return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+    @action(detail=True, methods=['post'], url_path='project-workspace-invites')
+    def project_workspace_invites(self, request, pk=None):
+        """Create or re-open a workspace invite (project owner / staff)."""
+        order = self.get_object()
+        if not self._can_manage_project_workspace(request, order):
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+        freelancer_id = request.data.get('freelancer_id')
+        raw_msg = request.data.get('message')
+        message = (str(raw_msg).strip() if raw_msg is not None else '')
+        if not freelancer_id:
+            return Response({'freelancer_id': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            fl = Freelancer.objects.get(pk=freelancer_id)
+        except Freelancer.DoesNotExist:
+            return Response({'detail': 'Freelancer not found'}, status=status.HTTP_404_NOT_FOUND)
+        if fl.user_id == order.user_id:
+            return Response({'detail': 'Cannot invite yourself'}, status=status.HTTP_400_BAD_REQUEST)
+
+        ws, _created_ws = ProjectWorkspace.objects.get_or_create(
+            project=order,
+            defaults={'created_by': request.user},
+        )
+        invite, created = ProjectWorkspaceInvite.objects.get_or_create(
+            workspace=ws,
+            freelancer=fl,
+            defaults={
+                'invited_by': request.user,
+                'message': message,
+                'status': ProjectWorkspaceInvite.Status.PENDING,
+            },
+        )
+        if not created:
+            if invite.status == ProjectWorkspaceInvite.Status.PENDING:
+                return Response(
+                    {'detail': 'An invite is already pending for this freelancer.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if invite.status == ProjectWorkspaceInvite.Status.ACCEPTED:
+                return Response(
+                    {'detail': 'This freelancer already accepted the workspace invite.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            invite.status = ProjectWorkspaceInvite.Status.PENDING
+            invite.invited_by = request.user
+            invite.message = message
+            invite.responded_at = None
+            invite.save()
+
+        ser = ProjectWorkspaceInviteSerializer(invite, context={'request': request})
+        return Response(ser.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
     # Admin Actions
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
@@ -411,20 +638,34 @@ class BaseServiceViewSet(BasePermissionMixin, BaseServiceActionMixin, viewsets.M
         
         if order.status != 'available':
             return Response(
-                {'error': 'This order is not available for bidding'}, 
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'This order is not available for bidding'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         # Get the freelancer instance for the current user
         try:
             freelancer = Freelancer.objects.get(user=request.user)
         except Freelancer.DoesNotExist:
             return Response(
-                {'error': 'Freelancer profile not found'}, 
-                status=status.HTTP_404_NOT_FOUND
+                {'error': 'Freelancer profile not found'},
+                status=status.HTTP_404_NOT_FOUND,
             )
-        
-        # Check if freelancer has already placed a bid - use freelancer instance instead of user
+
+        # Only invited freelancers may bid — projects are not globally open.
+        workspace = getattr(order, 'workspace', None)
+        if workspace is None or not workspace.invites.filter(
+            freelancer=freelancer,
+            status__in=[
+                ProjectWorkspaceInvite.Status.PENDING,
+                ProjectWorkspaceInvite.Status.ACCEPTED,
+            ],
+        ).exists():
+            return Response(
+                {'error': 'You have not been invited to bid on this project'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Check if freelancer has already placed a bid
         if order.bids.filter(freelancer=freelancer).exists():
             return Response(
                 {'error': 'You have already placed a bid on this order'}, 
@@ -747,33 +988,36 @@ class BaseServiceViewSet(BasePermissionMixin, BaseServiceActionMixin, viewsets.M
 
     @action(detail=False, methods=['get'])
     def available_for_bidding(self, request):
-        """Get available tasks for freelancer to bid on"""
+        """Get projects the freelancer has been invited to that are still open for bidding."""
         if not request.user.is_freelancer:
             return Response(
-                {'error': 'You are not a freelancer'}, 
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'You are not a freelancer'},
+                status=status.HTTP_403_FORBIDDEN,
             )
-        
+
         try:
-            # Get the freelancer instance associated with this user
             freelancer = Freelancer.objects.get(user=request.user)
         except Freelancer.DoesNotExist:
             return Response(
-                {'error': 'Freelancer profile not found'}, 
-                status=status.HTTP_404_NOT_FOUND
+                {'error': 'Freelancer profile not found'},
+                status=status.HTTP_404_NOT_FOUND,
             )
-        
-        # Get tasks that are available and user hasn't bid on yet
-        queryset = self.get_queryset().filter(status='available').exclude(
-            bids__freelancer=freelancer  # Use freelancer instance if Bid model references Freelancer
-            # OR use bids__freelancer__user=request.user if Bid model references User
-        )
-        
+
+        # Only show invited projects that are still open and the freelancer hasn't bid on yet.
+        queryset = self.get_queryset().filter(
+            status='available',
+            workspace__invites__freelancer=freelancer,
+            workspace__invites__status__in=[
+                ProjectWorkspaceInvite.Status.PENDING,
+                ProjectWorkspaceInvite.Status.ACCEPTED,
+            ],
+        ).exclude(bids__freelancer=freelancer).distinct()
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = ServiceListSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
-        
+
         serializer = ServiceListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
@@ -875,7 +1119,7 @@ class ResearchServiceViewSet(BaseReadOnlyServiceViewSet):
 class CustomServiceViewSet(BaseReadOnlyServiceViewSet):
     queryset = CustomService.objects.select_related('user', 'assigned_to').prefetch_related('files')
     serializer_class = CustomServiceSerializer
-    search_fields = ['title', 'description', 'service_id']
+    search_fields = ['title', 'description', 'id']
 
 
 class ServiceFileViewSet(viewsets.ModelViewSet):
@@ -883,13 +1127,94 @@ class ServiceFileViewSet(viewsets.ModelViewSet):
     serializer_class = ServiceFileSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['service__service_type']
+    filterset_fields = ['service__category']
 
     def get_queryset(self):
         queryset = super().get_queryset()
         if not self.request.user.is_staff:
             return queryset.filter(service__user=self.request.user)
         return queryset
+
+
+class ProjectWorkspaceInviteViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    """List and respond to project workspace invites (client + freelancer)."""
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProjectWorkspaceInviteSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = ProjectWorkspaceInvite.objects.select_related(
+            'workspace',
+            'workspace__project',
+            'workspace__project__user',
+            'freelancer',
+            'freelancer__user',
+            'invited_by',
+        ).order_by('-created_at')
+        user = self.request.user
+        if user.is_staff or getattr(user, 'is_admin', False):
+            return qs
+        return qs.filter(Q(workspace__project__user=user) | Q(freelancer__user=user))
+
+    @action(detail=True, methods=['post'])
+    def accept(self, request, pk=None):
+        invite = self.get_object()
+        if invite.freelancer.user_id != request.user.id:
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        if invite.status != ProjectWorkspaceInvite.Status.PENDING:
+            return Response({'detail': 'Invite is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
+        invite.status = ProjectWorkspaceInvite.Status.ACCEPTED
+        invite.responded_at = timezone.now()
+        invite.save()
+
+        client_user = invite.workspace.project.user
+        from tenancy.models import RecruitedFreelancer as RecruitedFreelancerModel
+
+        RecruitedFreelancerModel.objects.get_or_create(
+            recruiter=client_user,
+            freelancer=invite.freelancer,
+        )
+
+        return Response(
+            ProjectWorkspaceInviteSerializer(invite, context={'request': request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'])
+    def decline(self, request, pk=None):
+        invite = self.get_object()
+        if invite.freelancer.user_id != request.user.id:
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        if invite.status != ProjectWorkspaceInvite.Status.PENDING:
+            return Response({'detail': 'Invite is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
+        invite.status = ProjectWorkspaceInvite.Status.DECLINED
+        invite.responded_at = timezone.now()
+        invite.save()
+        return Response(
+            ProjectWorkspaceInviteSerializer(invite, context={'request': request}).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        invite = self.get_object()
+        if invite.workspace.project.user_id != request.user.id and not request.user.is_staff:
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        if invite.status != ProjectWorkspaceInvite.Status.PENDING:
+            return Response({'detail': 'Only pending invites can be cancelled.'}, status=status.HTTP_400_BAD_REQUEST)
+        invite.status = ProjectWorkspaceInvite.Status.CANCELLED
+        invite.responded_at = timezone.now()
+        invite.save()
+        return Response(
+            ProjectWorkspaceInviteSerializer(invite, context={'request': request}).data,
+            status=status.HTTP_200_OK,
+        )
+
 
 class BidViewSet(viewsets.ModelViewSet):
     queryset = Bid.objects.select_related('order', 'freelancer', 'freelancer__user', 'order__user')
@@ -1485,7 +1810,7 @@ def freelancer_stats(request):
 def get_recent_services():
     """Get recent services data"""
     recent_services = BaseService.objects.select_related(
-        'client', 'assigned_freelancer'
+        'user', 'assigned_to', 'assigned_to__user'
     ).order_by('-created_at')[:10]
     
     services_data = []
@@ -1494,13 +1819,18 @@ def get_recent_services():
             'id': str(service.id),
             'title': service.title,
             'status': service.status,
-            'budget': float(service.cost),
+            'budget': float(service.cost) if service.cost is not None else 0,
             'deadline': service.deadline.isoformat() if service.deadline else None,
             'createdAt': service.created_at.isoformat(),
-            'clientId': str(service.client.id) if service.client else None,
-            'client_name': service.client.get_full_name() if service.client else 'Unknown',
-            'freelancer_name': service.assigned_freelancer.user.get_full_name() if service.assigned_freelancer else None,
-            'service_type': getattr(service, 'service_type', 'General'),
+            'clientId': str(service.user.id) if service.user else None,
+            'client_name': service.user.get_full_name() if service.user else 'Unknown',
+            'freelancer_name': (
+                service.assigned_to.user.get_full_name()
+                if service.assigned_to and service.assigned_to.user
+                else None
+            ),
+            'category': getattr(service, 'category', None) or 'other',
+            'service_type': getattr(service, 'category', None) or 'other',
         })
     
     return services_data
@@ -1519,7 +1849,7 @@ def get_recent_activities():
             'description': f"Service '{service.title}' status changed to {service.status}",
             'timestamp': service.updated_at.isoformat(),
             'user_type': 'client',
-            'user_name': service.client.get_full_name() if service.client else 'Unknown'
+            'user_name': service.user.get_full_name() if service.user else 'Unknown'
         })
     
     # Sort by timestamp and return recent ones

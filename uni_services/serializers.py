@@ -5,10 +5,31 @@ from django.utils import timezone
 from authentication.models import User
 from freelancers.serializers import FreelancerSerializer
 from .models import (
-    BaseService, Bid, SoftwareService, ResearchService, CustomService, 
+    BaseService, Bid, SoftwareService, ResearchService, CustomService,
     ServiceFile, Freelancer,
-    OrderStatusHistory, OrderComment
+    OrderStatusHistory, OrderComment,
+    ProjectWorkspaceInvite,
 )
+
+
+def _normalize_category_alias(data):
+    """Prefer `category`; accept deprecated `service_type` on read/write payloads."""
+    if data is None:
+        return data
+    if hasattr(data, 'dict'):
+        data = {**data.dict()}
+    elif not isinstance(data, dict):
+        try:
+            data = dict(data)
+        except TypeError:
+            return data
+    else:
+        data = {**data}
+    legacy = data.get('service_type')
+    if legacy is not None and legacy != '' and not data.get('category'):
+        data['category'] = legacy
+    data.pop('service_type', None)
+    return data
 
 
 # User Serializers
@@ -160,6 +181,43 @@ class BidForServiceSerializer(serializers.ModelSerializer):
         return obj.proposal[:150] + '...' if len(obj.proposal) > 150 else obj.proposal
 
 
+class ProjectWorkspaceInviteSerializer(serializers.ModelSerializer):
+    """Invite payload for project workspace (owner + freelancer views)."""
+
+    invited_by = UserBasicSerializer(read_only=True)
+    freelancer_id = serializers.UUIDField(source='freelancer.id', read_only=True)
+    freelancer_display_name = serializers.SerializerMethodField()
+    freelancer_user_email = serializers.EmailField(source='freelancer.user.email', read_only=True)
+    project_id = serializers.CharField(source='workspace.project_id', read_only=True)
+    workspace_id = serializers.UUIDField(source='workspace.id', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    def get_freelancer_display_name(self, obj):
+        fl = obj.freelancer
+        return (
+            fl.display_name
+            or fl.user.get_full_name()
+            or fl.user.email
+        )
+
+    class Meta:
+        model = ProjectWorkspaceInvite
+        fields = [
+            'id',
+            'workspace_id',
+            'project_id',
+            'freelancer_id',
+            'freelancer_display_name',
+            'freelancer_user_email',
+            'status',
+            'status_display',
+            'message',
+            'invited_by',
+            'created_at',
+            'responded_at',
+        ]
+
+
 # Enhanced Base Service Serializers
 class BaseServiceSerializer(serializers.ModelSerializer):
     user = UserBasicSerializer(read_only=True)
@@ -177,8 +235,9 @@ class BaseServiceSerializer(serializers.ModelSerializer):
     comments = OrderCommentSerializer(many=True, read_only=True)
     bids = BidForServiceSerializer(many=True, read_only=True)
 
-    # Display fields
-    service_type_display = serializers.CharField(source='get_service_type_display', read_only=True)
+    service_type = serializers.CharField(source='category', read_only=True)
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    service_type_display = serializers.CharField(source='get_category_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
     acceptance_status_display = serializers.CharField(source='get_acceptance_status_display', read_only=True)
@@ -202,6 +261,9 @@ class BaseServiceSerializer(serializers.ModelSerializer):
             'started_at', 'completed_at', 'user', 'client_id'
         )
 
+    def to_internal_value(self, data):
+        data = _normalize_category_alias(data)
+        return super().to_internal_value(data)
 
     def get_final_cost(self, obj):
         """Get the final cost - bid amount if available, otherwise initial cost"""
@@ -221,18 +283,21 @@ class BaseServiceSerializer(serializers.ModelSerializer):
     
     def get_assigned_to_info(self, obj):
         if obj.assigned_to:
+            fl = obj.assigned_to
+            name = fl.display_name or fl.user.get_full_name() or fl.user.email
             return {
-                'name': obj.assigned_to.display_name,
-                'type': obj.assigned_to.freelancer_type,
-                'display': f"{obj.assigned_to.display_name} ({obj.assigned_to.get_freelancer_type_display()})"
+                'name': name,
+                'type': fl.freelancer_type,
+                'display': f"{name} ({fl.get_freelancer_type_display()})",
             }
         return {'display': 'Unassigned', 'color': 'red'}
 
     def get_client_info(self, obj):
+        name = obj.user.get_full_name() or obj.user.email
         return {
             'email': obj.user.email,
             'client_id': obj.client_id,
-            'name': f"{obj.user.first_name} {obj.user.last_name}"
+            'name': name,
         }
 
     def get_files_count(self, obj):
@@ -457,8 +522,9 @@ class ServiceListSerializer(serializers.ModelSerializer):
     time_remaining_display = serializers.SerializerMethodField()
     files_count = serializers.SerializerMethodField()
     
-    # Display fields
-    service_type_display = serializers.CharField(source='get_service_type_display', read_only=True)
+    service_type = serializers.CharField(source='category', read_only=True)
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    service_type_display = serializers.CharField(source='get_category_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
@@ -564,91 +630,50 @@ class ServiceListSerializer(serializers.ModelSerializer):
         return obj.title[:50] + '...' if len(obj.title) > 50 else obj.title
 
 
-# Creation Serializers
+# Creation: always `BaseService` with canonical `id`; extra payload keys → `details`.
+_BASE_CREATE_FIELDS = frozenset({
+    'title', 'description', 'category', 'cost', 'deadline',
+    'priority', 'requirements', 'tags', 'notes', 'estimated_hours', 'details',
+})
+
+
 class BaseServiceCreateSerializer(serializers.ModelSerializer):
+    details = serializers.JSONField(required=False, default=dict)
+
     class Meta:
         model = BaseService
         fields = [
-            'title', 'description', 'service_type', 'cost', 'deadline', 
-            'priority', 'requirements', 'tags', 'notes', 'estimated_hours'
+            'title', 'description', 'category', 'cost', 'deadline',
+            'priority', 'requirements', 'tags', 'notes', 'estimated_hours', 'details',
         ]
         extra_kwargs = {
             'deadline': {'required': False},
             'cost': {'required': False},
-            'priority': {'default': 'medium'}
+            'priority': {'default': 'medium'},
         }
 
-    def create(self, validated_data):
-        request = self.context.get('request')
-        if request and request.user:
-            validated_data['user'] = request.user
-        return super().create(validated_data)
+    def to_internal_value(self, data):
+        data = _normalize_category_alias(data)
+        if hasattr(data, 'dict'):
+            data = data.dict()
+        elif not isinstance(data, dict):
+            try:
+                data = dict(data)
+            except TypeError:
+                data = {k: data.get(k) for k in data.keys()}
+        else:
+            data = dict(data)
 
-
-class SoftwareServiceCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SoftwareService
-        fields = [
-            'title', 'description', 'cost', 'deadline', 'requirements', 'tags',
-            'priority', 'estimated_hours', 'budget_range', 'timeline', 
-            'frontend_languages', 'frontend_frameworks', 'backend_languages', 
-            'backend_frameworks', 'ai_languages', 'ai_frameworks'
-        ]
-        extra_kwargs = {
-            'deadline': {'required': False},
-            'cost': {'required': False},
-            'priority': {'default': 'medium'}
-        }
-
-    def create(self, validated_data):
-        request = self.context.get('request')
-        if request and request.user:
-            validated_data['user'] = request.user
-        return super().create(validated_data)
-
-
-class ResearchServiceCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ResearchService
-        fields = [
-            'title', 'description', 'cost', 'deadline', 'requirements', 'tags',
-            'priority', 'estimated_hours', 'academic_writing_type', 'writing_technique', 
-            'academic_writing_style', 'critical_writing_type', 'critical_thinking_skill',
-            'critical_writing_structure', 'discussion_type', 'discussion_component',
-            'citation_style', 'number_of_pages', 'number_of_references', 'study_level'
-        ]
-        extra_kwargs = {
-            'deadline': {'required': False},
-            'cost': {'required': False},
-            'priority': {'default': 'medium'}
-        }
-
-    def create(self, validated_data):
-        request = self.context.get('request')
-        if request and request.user:
-            validated_data['user'] = request.user
-        return super().create(validated_data)
-
-
-class CustomServiceCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomService
-        fields = [
-            'title', 'description', 'cost', 'deadline', 'requirements', 'tags',
-            'priority', 'estimated_hours', 'sizes', 'phone_number', 
-            'delivery_time', 'support_duration', 'features', 'process_link', 'service_id'
-        ]
-        extra_kwargs = {
-            'deadline': {'required': False},
-            'cost': {'required': False},
-            'priority': {'default': 'medium'}
-        }
-
-    def create(self, validated_data):
-        request = self.context.get('request')
-        if request and request.user:
-            validated_data['user'] = request.user
-        return super().create(validated_data)
+        extras = {}
+        for k in list(data.keys()):
+            if k not in _BASE_CREATE_FIELDS:
+                extras[k] = data.pop(k)
+        ret = super().to_internal_value(data)
+        if extras:
+            details = dict(ret.get('details') or {})
+            details.update(extras)
+            ret['details'] = details
+        return ret
 
 
 # Admin Action Serializers
@@ -782,7 +807,8 @@ class CustomServiceSerializer(BaseServiceSerializer):
 class OrderExportSerializer(serializers.ModelSerializer):
     """Serializer for CSV export matching admin export format"""
     client_email = serializers.CharField(source='user.email', read_only=True)
-    service_type_display = serializers.CharField(source='get_service_type_display', read_only=True)
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    service_type_display = serializers.CharField(source='get_category_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
@@ -793,7 +819,7 @@ class OrderExportSerializer(serializers.ModelSerializer):
     class Meta:
         model = BaseService
         fields = [
-            'id', 'title', 'client_email', 'service_type_display', 'status_display',
+            'id', 'title', 'client_email', 'category_display', 'service_type_display', 'status_display',
             'payment_status_display', 'assigned_to_name', 'cost', 'deadline_formatted',
             'created_formatted', 'priority_display'
         ]

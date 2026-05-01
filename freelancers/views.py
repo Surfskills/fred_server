@@ -3,7 +3,7 @@ import django_filters
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Sum
 from django.db.models import Avg 
@@ -13,6 +13,7 @@ from datetime import  timedelta
 from django.utils import timezone
 from django.db.models import Prefetch
 from payouts.models import Payout, PayoutSetting
+from tenancy.services import set_exclusive_freelancer_tier_flag
 
 from .serializers import (
     FreelancerSerializer,
@@ -24,7 +25,9 @@ from .serializers import (
     FreelancerCertificationSerializer,
     FreelancerStatsSerializer,
     FreelancerStatusUpdateSerializer,
-    FreelancerSearchSerializer
+    FreelancerSearchSerializer,
+    MarketplaceDirectorySerializer,
+    SetMarketplaceTierSerializer,
 )
 
 class FreelancerFilter(django_filters.FilterSet):
@@ -36,7 +39,8 @@ class FreelancerFilter(django_filters.FilterSet):
     class Meta:
         model = Freelancer
         fields = [
-            'freelancer_type', 
+            'freelancer_type',
+            'marketplace_tier',
             'experience_level', 
             'availability_status',
             'location',
@@ -84,7 +88,11 @@ class FreelancerViewSet(viewsets.ModelViewSet):
         return super().get_serializer_class()
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'toggle_verification']:
+        if self.action == 'marketplace_directory':
+            self.permission_classes = [AllowAny]
+        elif self.action == 'set_marketplace_tier':
+            self.permission_classes = [IsAuthenticated]
+        elif self.action in ['create', 'update', 'partial_update', 'destroy', 'toggle_verification']:
             self.permission_classes = [IsAdminUser]
         elif self.action in ['my_profile']:
             self.permission_classes = [IsAuthenticated]
@@ -114,18 +122,77 @@ class FreelancerViewSet(viewsets.ModelViewSet):
             
         return queryset
 
-    @action(detail=False, methods=['get'])
-    def my_profile(self, request):
-        """Get the freelancer profile for the current user"""
+    @action(detail=False, methods=['get'], url_path='marketplace-directory')
+    def marketplace_directory(self, request):
+        """Public discovery cards: first name, photo, specialism, tier, catalog preview."""
+        qs = (
+            Freelancer.objects.filter(is_available=True)
+            .select_related('user')
+            .prefetch_related('portfolio_items')
+        )
+        tier = request.query_params.get('tier')
+        if tier in ('native', 'dynamic', 'demer'):
+            qs = qs.filter(marketplace_tier=tier)
+        qs = qs.order_by('-is_featured', '-average_rating', '-total_projects_completed')[:48]
+        ser = MarketplaceDirectorySerializer(qs, many=True, context={'request': request})
+        return Response(ser.data)
+
+    @action(detail=False, methods=['post'], url_path='set-marketplace-tier')
+    def set_marketplace_tier(self, request):
+        """Assign or upgrade marketplace track on the current user's freelancer profile (no new account)."""
+        if not getattr(request.user, 'is_freelancer', False):
+            return Response(
+                {'error': 'Only freelancer accounts can set a marketplace tier.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         try:
             freelancer = request.user.freelancer_profile
-            serializer = self.get_serializer(freelancer)
-            return Response(serializer.data)
         except Freelancer.DoesNotExist:
             return Response(
-                {'error': 'Freelancer profile not found'}, 
-                status=status.HTTP_404_NOT_FOUND
+                {'error': 'Freelancer profile not found.'},
+                status=status.HTTP_404_NOT_FOUND,
             )
+
+        ser = SetMarketplaceTierSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        new_tier = ser.validated_data['marketplace_tier']
+
+        tier_rank = {'native': 0, 'dynamic': 1, 'demer': 2}
+        current = freelancer.marketplace_tier
+        if tier_rank[new_tier] < tier_rank[current]:
+            return Response(
+                {'error': 'Cannot downgrade marketplace tier. Each freelancer has one track; upgrades only.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        freelancer.marketplace_tier = new_tier
+        freelancer.save(update_fields=['marketplace_tier'])
+        set_exclusive_freelancer_tier_flag(request.user, new_tier)
+        return Response(FreelancerSerializer(freelancer, context={'request': request}).data)
+
+    @action(detail=False, methods=['get', 'patch'])
+    def my_profile(self, request):
+        """Get or partially update the freelancer profile for the current user."""
+        try:
+            # Bypass availability filter — owner must always see their own profile
+            freelancer = Freelancer.objects.select_related('user').prefetch_related(
+                'portfolio_items', 'reviews', 'certifications'
+            ).get(user=request.user)
+        except Freelancer.DoesNotExist:
+            return Response(
+                {'error': 'Freelancer profile not found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if request.method == 'PATCH':
+            serializer = FreelancerUpdateSerializer(freelancer, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                # Return full detail after save
+                return Response(FreelancerDetailSerializer(freelancer, context={'request': request}).data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(FreelancerDetailSerializer(freelancer, context={'request': request}).data)
 
     @action(detail=False, methods=['get'])
     def search(self, request):
@@ -890,7 +957,8 @@ class FreelancerViewSet(viewsets.ModelViewSet):
             tasks_data.append({
                 'id': task.id,
                 'title': task.title,
-                'service_type': task.service_type,
+                'category': task.category,
+                'service_type': task.category,
                 'status': task.status,
                 'cost': float(task.final_cost) if task.final_cost else None,
                 'completed_at': task.completed_at,

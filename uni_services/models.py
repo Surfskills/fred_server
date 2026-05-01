@@ -48,6 +48,12 @@ class Freelancer(models.Model):
         ('unavailable', 'Unavailable'),
     )
 
+    MARKETPLACE_TIER_CHOICES = (
+        ('native', 'Native'),
+        ('dynamic', 'Dynamic'),
+        ('demer', 'Demers Room'),
+    )
+
     # Primary fields
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(
@@ -64,6 +70,12 @@ class Freelancer(models.Model):
     # Categorization
     freelancer_type = models.CharField(max_length=30, choices=FREELANCER_TYPES, default='other')
     experience_level = models.CharField(max_length=20, choices=EXPERIENCE_LEVELS, default='beginner')
+    marketplace_tier = models.CharField(
+        max_length=20,
+        choices=MARKETPLACE_TIER_CHOICES,
+        default='native',
+        help_text='Native / Dynamic / Demers — marketplace track (separate from freelancer_type skill category).',
+    )
     
     # Skills and expertise
     skills = models.JSONField(default=list, help_text="List of skills")
@@ -144,7 +156,8 @@ class Freelancer(models.Model):
 
     @property
     def name(self):
-        return self.display_name or self.user.username 
+        # User model is email-based (no `username`); use Django's identifier.
+        return self.display_name or self.user.get_username()
 
     @property
     def email(self):
@@ -212,6 +225,7 @@ class Freelancer(models.Model):
 
     class Meta:
         indexes = [
+            models.Index(fields=['marketplace_tier']),
             models.Index(fields=['freelancer_type']),
             models.Index(fields=['is_available']),
             models.Index(fields=['average_rating']),
@@ -321,11 +335,16 @@ class FreelancerCertification(models.Model):
     class Meta:
         ordering = ['-issue_date']
 class BaseService(PolymorphicModel):
-    """Enhanced base service model with improved start_working workflow"""
+    """
+    Unified marketplace record: a single primary key (`id`) identifies each row.
+    Optional structured attributes from legacy “software / research / custom” flows
+    live in `details` so new items are always created as this model—not separate
+    product/service tables with their own identifiers.
+    """
     
-    SERVICE_TYPES = (
+    CATEGORY_CHOICES = (
         ('software', 'Software'),
-        ('research', 'Research'), 
+        ('research', 'Research'),
         ('custom', 'Custom Service'),
         ('design', 'Design'),
         ('development', 'Development'),
@@ -374,7 +393,7 @@ class BaseService(PolymorphicModel):
     description = models.TextField()
     cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Initial Budget/Cost estimate")
     bid_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Final approved bid amount")
-    service_type = models.CharField(max_length=20, choices=SERVICE_TYPES)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     
     # Status fields
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available')
@@ -395,6 +414,32 @@ class BaseService(PolymorphicModel):
     requirements = models.JSONField(default=list, help_text="List of requirements/skills needed")
     tags = models.JSONField(default=list, help_text="Tags for categorization")
     notes = models.TextField(blank=True, null=True, help_text="Internal admin notes")
+
+    details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Type-specific or extended attributes; canonical identity is `id` only.",
+    )
+
+    POSTING_TENANT_KIND_CHOICES = (
+        ("user", "User"),
+        ("native", "Native"),
+        ("dynamic", "Dynamic"),
+        ("demer", "Demer"),
+        ("organization", "Organization"),
+    )
+    posting_tenant_kind = models.CharField(
+        max_length=20,
+        choices=POSTING_TENANT_KIND_CHOICES,
+        default="user",
+        help_text="Tenancy context active when this listing was created (JWT tenant_kind).",
+    )
+    posting_tenant_id = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="Stable id for the tenant (user id or organization UUID as string).",
+    )
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -594,7 +639,7 @@ class SoftwareService(BaseService):
     ai_frameworks = models.CharField(max_length=100, blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        self.service_type = 'development'
+        self.category = 'development'
         super().save(*args, **kwargs)
 
 class ResearchService(BaseService):
@@ -620,7 +665,7 @@ class ResearchService(BaseService):
     study_level = models.CharField(max_length=20, choices=STUDY_LEVEL_CHOICES, default='Undergraduate')
 
     def save(self, *args, **kwargs):
-        self.service_type = 'writing'
+        self.category = 'writing'
         super().save(*args, **kwargs)
 
 class CustomService(BaseService):
@@ -630,10 +675,9 @@ class CustomService(BaseService):
     support_duration = models.CharField(max_length=100)
     features = models.JSONField(default=list)
     process_link = models.URLField(blank=True, null=True)
-    service_id = models.CharField(max_length=100, unique=True, blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        self.service_type = 'custom'
+        self.category = 'custom'
         super().save(*args, **kwargs)
 
 class ServiceFile(models.Model):
@@ -728,6 +772,80 @@ class Bid(models.Model):
         self.order.approve_bid_and_assign(self)
         self.approved_by = approved_by_user
         self.save()
+
+
+class ProjectWorkspace(models.Model):
+    """
+    Collaboration record for one marketplace project (BaseService).
+    Lazy-created when the project owner sends the first workspace invite.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.OneToOneField(
+        BaseService,
+        on_delete=models.CASCADE,
+        related_name="workspace",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_project_workspaces",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Workspace<{self.project_id}>"
+
+
+class ProjectWorkspaceInvite(models.Model):
+    """Invitation for a freelancer to join the project workspace (delivery hub context)."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+        DECLINED = "declined", "Declined"
+        CANCELLED = "cancelled", "Cancelled"
+
+    workspace = models.ForeignKey(
+        ProjectWorkspace,
+        on_delete=models.CASCADE,
+        related_name="invites",
+    )
+    freelancer = models.ForeignKey(
+        Freelancer,
+        on_delete=models.CASCADE,
+        related_name="workspace_invites",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="project_workspace_invites_sent",
+    )
+    message = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workspace", "freelancer"],
+                name="uniq_project_workspace_invite_freelancer",
+            )
+        ]
+
+    def __str__(self):
+        return f"Invite<{self.workspace_id} {self.freelancer_id} {self.status}>"
+
 
 class BidFilter(django_filters.FilterSet):
     status = django_filters.CharFilter(field_name='status')

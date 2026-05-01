@@ -12,6 +12,7 @@ class FreelancerSerializer(serializers.ModelSerializer):
             'display_name',
             'title',
             'freelancer_type',
+            'marketplace_tier',
             'experience_level',
             'is_available',
             'availability_status',
@@ -23,6 +24,55 @@ class FreelancerSerializer(serializers.ModelSerializer):
             'is_profile_verified',
             'last_active',
         ]
+
+
+class MarketplaceDirectorySerializer(serializers.ModelSerializer):
+    """Public card payload: first name, photo, specialism, tier, catalog titles."""
+    public_first_name = serializers.SerializerMethodField()
+    profile_photo = serializers.SerializerMethodField()
+    catalog_preview = serializers.SerializerMethodField()
+    skill_preview = serializers.SerializerMethodField()
+    marketplace_tier_display = serializers.CharField(source='get_marketplace_tier_display', read_only=True)
+
+    class Meta:
+        model = Freelancer
+        fields = [
+            'id',
+            'public_first_name',
+            'title',
+            'experience_level',
+            'marketplace_tier',
+            'marketplace_tier_display',
+            'profile_photo',
+            'skill_preview',
+            'catalog_preview',
+            'average_rating',
+            'hourly_rate',
+        ]
+
+    def get_public_first_name(self, obj):
+        if getattr(obj.user, 'first_name', None):
+            return obj.user.first_name
+        name = (obj.display_name or '').strip()
+        return name.split()[0] if name else 'Freelancer'
+
+    def get_profile_photo(self, obj):
+        pic = getattr(obj.user, 'profile_picture', None)
+        if pic and getattr(pic, 'name', None):
+            request = self.context.get('request')
+            url = pic.url
+            if request:
+                return request.build_absolute_uri(url)
+            return url
+        return None
+
+    def get_catalog_preview(self, obj):
+        return list(obj.portfolio_items.values_list('title', flat=True)[:5])
+
+    def get_skill_preview(self, obj):
+        raw = obj.skills if isinstance(obj.skills, list) else []
+        out = [str(s).strip() for s in raw if str(s).strip()]
+        return out[:6]
 
 class FreelancerDetailSerializer(serializers.ModelSerializer):
     skills = serializers.SerializerMethodField()
@@ -37,6 +87,7 @@ class FreelancerDetailSerializer(serializers.ModelSerializer):
             'title',
             'bio',
             'freelancer_type',
+            'marketplace_tier',
             'experience_level',
             'is_available',
             'availability_status',
@@ -101,6 +152,9 @@ class FreelancerUpdateSerializer(serializers.ModelSerializer):
             'experience_level',
             'hourly_rate',
             'minimum_project_budget',
+            'preferred_project_duration',
+            'max_concurrent_projects',
+            'willing_to_travel',
             'location',
             'timezone',
             'skills',
@@ -117,6 +171,12 @@ class FreelancerStatusUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Freelancer
         fields = ['is_available', 'availability_status']
+
+
+class SetMarketplaceTierSerializer(serializers.Serializer):
+    """Self-service: set or upgrade marketplace_tier (single track per freelancer)."""
+
+    marketplace_tier = serializers.ChoiceField(choices=Freelancer.MARKETPLACE_TIER_CHOICES)
 
 class FreelancerSearchSerializer(serializers.Serializer):
     query = serializers.CharField(required=False)
@@ -195,8 +255,8 @@ class FreelancerReviewSerializer(serializers.ModelSerializer):
         read_only_fields = ['client', 'freelancer', 'order']
     
     def get_client_name(self, obj):
-        return obj.client.get_full_name() or obj.client.username
-    
+        return obj.client.get_full_name() or obj.client.email
+
     def get_client_email(self, obj):
         return obj.client.email
 

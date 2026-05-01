@@ -9,7 +9,15 @@ from .views import (
     UserProfileView,
     ChangePasswordView,
     AdminListView,
-    UserListView
+    UserListView,
+    SwitchContextView,
+    UserOrganizationsView,
+    OrganizationMembershipListCreateView,
+    OrganizationMembershipDetailView,
+    OrganizationCreateView,
+    CapabilityUpgradeView,
+    CollaborationPeersView,
+    RecruiterTeamListView,
 )
 
 urlpatterns = [
@@ -24,6 +32,19 @@ urlpatterns = [
     # Password reset
     path('password-reset/', PasswordResetView.as_view(), name='password_reset'),
     
+    # Tenancy / session
+    path('context/', SwitchContextView.as_view(), name='switch_context'),
+    path('organizations/', UserOrganizationsView.as_view(), name='user_organizations'),
+    path('organizations/create/', OrganizationCreateView.as_view(), name='organization_create'),
+    path('organizations/<uuid:organization_id>/members/', OrganizationMembershipListCreateView.as_view()),
+    path(
+        'organizations/<uuid:organization_id>/members/<int:member_user_id>/',
+        OrganizationMembershipDetailView.as_view(),
+    ),
+    path('my-team/', RecruiterTeamListView.as_view(), name='recruiter_team'),
+    path('collaboration-peers/', CollaborationPeersView.as_view(), name='collaboration_peers'),
+    path('capabilities/upgrade/', CapabilityUpgradeView.as_view(), name='capability_upgrade'),
+
     # User profile
     path('profile/', UserProfileView.as_view(), name='user_profile'),
     path('change-password/', ChangePasswordView.as_view(), name='change_password'),

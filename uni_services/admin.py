@@ -15,7 +15,8 @@ from datetime import datetime, timedelta
 
 from .models import (
     BaseService, SoftwareService, ResearchService, CustomService,
-    ServiceFile, Freelancer, OrderStatusHistory, OrderComment, Bid
+    ServiceFile, Freelancer, OrderStatusHistory, OrderComment, Bid,
+    ProjectWorkspace, ProjectWorkspaceInvite,
 )
 
 
@@ -70,16 +71,16 @@ class AssignmentFilter(SimpleListFilter):
         return queryset
 
 
-class ServiceTypeFilter(SimpleListFilter):
-    title = 'Service Type'
-    parameter_name = 'service_type'
+class CategoryFilter(SimpleListFilter):
+    title = 'Category'
+    parameter_name = 'category'
 
     def lookups(self, request, model_admin):
-        return BaseService.SERVICE_TYPES
+        return BaseService.CATEGORY_CHOICES
 
     def queryset(self, request, queryset):
         if self.value():
-            return queryset.filter(service_type=self.value())
+            return queryset.filter(category=self.value())
         return queryset
 
 
@@ -143,7 +144,7 @@ def export_orders_to_csv(modeladmin, request, queryset):
     
     writer = csv.writer(response)
     writer.writerow([
-        'Order ID', 'Title', 'Client', 'Service Type', 'Status', 'Payment Status',
+        'Order ID', 'Title', 'Client', 'Category', 'Status', 'Payment Status',
         'Assigned To', 'Cost', 'Deadline', 'Created', 'Priority'
     ])
     
@@ -152,7 +153,7 @@ def export_orders_to_csv(modeladmin, request, queryset):
             order.id,
             order.title,
             order.user.email,
-            order.get_service_type_display(),
+            order.get_category_display(),
             order.get_status_display(),
             order.get_payment_status_display(),
             order.assigned_to_name or 'Unassigned',
@@ -261,12 +262,13 @@ mark_as_cancelled.short_description = "Cancel orders"
 @admin.register(BaseService)
 class BaseServiceAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'title_short', 'client_info', 'service_type', 'status_badge', 
+        'id', 'title_short', 'client_info', 'category_badge',
+        'status_badge',
         'payment_status_badge', 'assigned_to_info', 'cost_display', 
         'deadline_info', 'priority_badge', 'priority', 'created_at'  # Added 'priority' here
     )
     list_filter = (
-        StatusFilter, PaymentStatusFilter, ServiceTypeFilter, 
+        StatusFilter, PaymentStatusFilter, CategoryFilter, 
         AssignmentFilter, 'priority', 'created_at', 'deadline'
     )
     search_fields = ('id', 'title', 'description', 'user__email', 'assigned_to__name')
@@ -278,7 +280,7 @@ class BaseServiceAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Order Information', {
-            'fields': ('id', 'title', 'description', 'service_type', 'user', 'client_id')
+            'fields': ('id', 'title', 'description', 'category', 'user', 'client_id')
         }),
         ('Status & Assignment', {
             'fields': (
@@ -290,7 +292,7 @@ class BaseServiceAdmin(admin.ModelAdmin):
             'fields': ('cost', 'bid_amount', 'deadline', 'estimated_hours', 'actual_hours', 'time_remaining_display', 'is_overdue')
         }),
         ('Additional Information', {
-            'fields': ('requirements', 'tags', 'notes'),
+            'fields': ('requirements', 'tags', 'notes', 'details', 'posting_tenant_kind', 'posting_tenant_id'),
             'classes': ('collapse',)
         }),
         ('Timestamps', {
@@ -381,6 +383,10 @@ class BaseServiceAdmin(admin.ModelAdmin):
     def title_short(self, obj):
         return obj.title[:50] + '...' if len(obj.title) > 50 else obj.title
     title_short.short_description = 'Title'
+
+    def category_badge(self, obj):
+        return obj.get_category_display()
+    category_badge.short_description = 'Category'
 
     def client_info(self, obj):
         return format_html(
@@ -523,7 +529,7 @@ class CustomServiceAdmin(BaseServiceAdmin):
         ('Custom Service Details', {
             'fields': (
                 'sizes', 'phone_number', 'delivery_time', 'support_duration',
-                'features', 'process_link', 'service_id'
+                'features', 'process_link',
             ),
             'classes': ('collapse',)
         }),
@@ -621,6 +627,21 @@ class BidAdmin(admin.ModelAdmin):
         updated = queryset.filter(status='pending').update(status='rejected')
         messages.success(request, f'{updated} bids rejected')
     reject_bids.short_description = "Reject selected bids"
+
+
+@admin.register(ProjectWorkspace)
+class ProjectWorkspaceAdmin(admin.ModelAdmin):
+    list_display = ('id', 'project', 'created_by', 'created_at')
+    search_fields = ('project__id', 'project__title')
+    raw_id_fields = ('project', 'created_by')
+
+
+@admin.register(ProjectWorkspaceInvite)
+class ProjectWorkspaceInviteAdmin(admin.ModelAdmin):
+    list_display = ('id', 'workspace', 'freelancer', 'status', 'invited_by', 'created_at')
+    list_filter = ('status',)
+    search_fields = ('workspace__project__id', 'freelancer__user__email')
+    raw_id_fields = ('workspace', 'freelancer', 'invited_by')
 
 
 # Custom admin site configuration

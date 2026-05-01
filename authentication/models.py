@@ -14,8 +14,8 @@ class UserManager(BaseUserManager):
             raise ValueError('The Email field must be set')
         email = self.normalize_email(email)
         
-        # Ensure user_type is provided, default to 'CLIENT' if not
-        user_type = extra_fields.pop('user_type', User.Types.CLIENT)
+        # Ensure user_type is provided, default to 'FREELANCER' if not
+        user_type = extra_fields.pop('user_type', User.Types.FREELANCER)
         
         # Create the user instance with the correct fields
         user = self.model(email=email, user_type=user_type, **extra_fields)
@@ -67,7 +67,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     user_type = models.CharField(
         max_length=15,
         choices=Types.choices,
-        default=Types.CLIENT
+        default=Types.FREELANCER
     )
     
     # Profile completion tracking

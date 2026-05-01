@@ -2,10 +2,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    admin_dashboard, freelancer_stats, 
-    BaseServiceViewSet, SoftwareServiceViewSet, 
-    ResearchServiceViewSet, CustomServiceViewSet, 
-    ServiceFileViewSet, BidViewSet
+    admin_dashboard, freelancer_stats,
+    BaseServiceViewSet, SoftwareServiceViewSet,
+    ResearchServiceViewSet, CustomServiceViewSet,
+    ServiceFileViewSet, BidViewSet, ProjectWorkspaceInviteViewSet,
 )
 
 router = DefaultRouter()
@@ -23,6 +23,8 @@ router.register(r'service-files', ServiceFileViewSet, basename='servicefile')
 
 # Bid management
 router.register(r'bids', BidViewSet, basename='bid')
+
+router.register(r'workspace-invites', ProjectWorkspaceInviteViewSet, basename='workspace-invite')
 
 urlpatterns = [
     path('', include(router.urls)),

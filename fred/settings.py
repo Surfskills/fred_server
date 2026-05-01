@@ -216,6 +216,11 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+CORS_ALLOWED_ORIGINS = [
+    "https://task-management-platform-self.vercel.app",
+    "http://localhost:3000",
+    "http://192.168.100.156:3000",
+]
 # Custom User Model
 AUTH_USER_MODEL = 'authentication.User'
 

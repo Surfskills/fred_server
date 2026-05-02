@@ -113,6 +113,21 @@ def post_project_analyze_to_engine(payload: dict[str, Any]) -> requests.Response
     )
 
 
+def post_freelancer_sync_to_engine(freelancers: list[dict[str, Any]]) -> requests.Response:
+    """Upsert freelancer profile rows in the AI engine pool (POST /api/v1/freelancers/sync)."""
+    cfg = _engine_base_and_key()
+    if not cfg:
+        raise RuntimeError("AI engine not configured")
+    base, key = cfg
+    url = f"{base}/api/v1/freelancers/sync"
+    return requests.post(
+        url,
+        json={"freelancers": freelancers},
+        headers={"X-Api-Key": key, "Content-Type": "application/json"},
+        timeout=120,
+    )
+
+
 def get_project_analysis_from_engine(project_id: str) -> requests.Response:
     cfg = _engine_base_and_key()
     if not cfg:

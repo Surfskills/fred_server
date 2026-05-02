@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from authentication.models import User
+from tenancy.context import get_request_claims
 from .models import Resource, ResourceCategory, ResourceTag, ResourceVersion
 
 
@@ -51,17 +52,19 @@ class ResourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resource
         fields = [
-            'id', 'title', 'description', 'category', 'category_id', 
-            'tags', 'tag_ids', 'visibility', 'resource_type', 
-            'thumbnail', 'thumbnail_url', 'file', 'file_url', 
-            'file_size', 'file_size_display', 'partners', 
-            'upload_date', 'update_date', 'download_count', 
-            'view_count', 'uploaded_by', 'versions'
+            'id', 'title', 'description', 'category', 'category_id',
+            'tags', 'tag_ids', 'visibility', 'resource_type',
+            'thumbnail', 'thumbnail_url', 'file', 'file_url',
+            'file_size', 'file_size_display', 'partners',
+            'upload_date', 'update_date', 'download_count',
+            'view_count', 'uploaded_by', 'versions',
+            'tenant_kind', 'tenant_id',
         ]
         read_only_fields = [
-            'upload_date', 'update_date', 'download_count', 
-            'view_count', 'uploaded_by', 'thumbnail_url', 
-            'file_url', 'file_size_display'
+            'upload_date', 'update_date', 'download_count',
+            'view_count', 'uploaded_by', 'thumbnail_url',
+            'file_url', 'file_size_display',
+            'tenant_kind', 'tenant_id',
         ]
     
     def get_thumbnail_url(self, obj):
@@ -83,7 +86,13 @@ class ResourceSerializer(serializers.ModelSerializer):
             return f"{obj.file_size / (1024 * 1024):.1f} MB"
     
     def create(self, validated_data):
-        validated_data['uploaded_by'] = self.context['request'].user
+        request = self.context['request']
+        claims = get_request_claims(request)
+        validated_data['uploaded_by'] = request.user
+        validated_data['tenant_kind'] = claims.get('tenant_kind') or 'user'
+        validated_data['tenant_id'] = str(
+            claims.get('tenant_id') or request.user.pk
+        )
         return super().create(validated_data)
 
 class ResourceUploadSerializer(serializers.ModelSerializer):

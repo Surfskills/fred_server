@@ -2,6 +2,14 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.db.models import Q
+
+from tenancy.context import get_request_claims
+from tenancy.tenant_scope import (
+    legacy_unscoped_tenant_q,
+    tenant_scope_or_legacy_q,
+    wants_all_tenants,
+)
+
 from .models import Resource, ResourceCategory, ResourceTag
 from .serializers import (
     ResourceSerializer, ResourceCategorySerializer, 
@@ -45,9 +53,16 @@ class ResourceViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = Resource.objects.all()
-        
-        # Filter based on visibility and user permissions
         user = self.request.user
+
+        if wants_all_tenants(self.request):
+            pass
+        elif user.is_authenticated:
+            queryset = queryset.filter(tenant_scope_or_legacy_q(self.request))
+        else:
+            queryset = queryset.filter(legacy_unscoped_tenant_q())
+
+        # Filter based on visibility and user permissions
         if not user.is_authenticated:
             queryset = queryset.filter(visibility='public')
         elif not user.is_staff:
@@ -93,10 +108,14 @@ class ResourceViewSet(viewsets.ModelViewSet):
         return ResourceSerializer
     
     def perform_create(self, serializer):
-        """
-        Called when creating a new resource
-        """
-        serializer.save(uploaded_by=self.request.user)
+        claims = get_request_claims(self.request)
+        tenant_kind = claims.get("tenant_kind") or "user"
+        tenant_id = claims.get("tenant_id") or str(self.request.user.pk)
+        serializer.save(
+            uploaded_by=self.request.user,
+            tenant_kind=tenant_kind,
+            tenant_id=str(tenant_id),
+        )
     
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):
@@ -124,13 +143,15 @@ def resource_metrics(request):
     Get comprehensive resource metrics for dashboard
     """
     user = request.user
-    
-    # Base queryset with user permissions
-    if user.is_staff:
+
+    if wants_all_tenants(request):
         resources_qs = Resource.objects.all()
     else:
-        resources_qs = Resource.objects.filter(
-            Q(visibility='public') | 
+        resources_qs = Resource.objects.filter(tenant_scope_or_legacy_q(request))
+
+    if not user.is_staff:
+        resources_qs = resources_qs.filter(
+            Q(visibility='public') |
             Q(visibility='partner', partners=user) |
             Q(uploaded_by=user)
         ).distinct()

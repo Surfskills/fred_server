@@ -2,6 +2,9 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 
+from tenancy.tenant_scope import TENANT_KIND_CHOICES
+
+
 class ResourceCategory(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=100, unique=True)
@@ -53,7 +56,22 @@ class Resource(models.Model):
     download_count = models.PositiveIntegerField(default=0)
     view_count = models.PositiveIntegerField(default=0)
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='uploaded_resources')
-    
+    tenant_kind = models.CharField(
+        max_length=20,
+        choices=TENANT_KIND_CHOICES,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="JWT tenant_kind when this resource was created.",
+    )
+    tenant_id = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Stable tenant id (user pk or organization UUID) when created.",
+    )
+
     class Meta:
         ordering = ['-update_date']
     

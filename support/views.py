@@ -4,24 +4,25 @@ from rest_framework.response import Response
 from django.core.paginator import Paginator, EmptyPage
 from rest_framework.exceptions import NotFound
 
-from authentication.models import User
-
-
 from django.db import models
+
+from authentication.models import User
+from tenancy.context import get_request_claims
+from tenancy.tenant_scope import (
+    row_matches_request_tenant,
+    tenant_scope_or_legacy_q,
+    wants_all_tenants,
+)
 
 from .models import SupportTicket, Comment, SupportTicketAttachment, ActivityLog
 from .serializers import (
-    SupportTicketSerializer, 
+    SupportTicketSerializer,
     CreateSupportTicketSerializer,
-    UpdateSupportTicketSerializer, 
+    UpdateSupportTicketSerializer,
     CommentSerializer,
     AttachmentSerializer,
-    ActivityLogSerializer
+    ActivityLogSerializer,
 )
-
-from rest_framework import permissions
-
-from authentication.models import User
 
 class IsAdminOrSupportAgent(permissions.BasePermission):
     """
@@ -42,13 +43,12 @@ class IsSupportAgentAssignedToTicket(permissions.BasePermission):
     """
     def has_object_permission(self, request, view, obj):
         user = request.user
-        # Admin can access any ticket
         if user.is_staff and user.user_type == User.Types.ADMIN:
             return True
-        # Support agent can access tickets assigned to them OR created by them
-        elif user.is_staff and user.user_type == User.Types.SUPPORT_AGENT:
+        if not row_matches_request_tenant(obj, request):
+            return False
+        if user.is_staff and user.user_type == User.Types.SUPPORT_AGENT:
             return obj.assigned_to == user or obj.submitted_by == user
-        # Regular users can access their own tickets
         return obj.submitted_by == user
     
 class SupportTicketViewSet(viewsets.ModelViewSet):
@@ -64,7 +64,14 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
         return super().get_serializer_class()
 
     def perform_create(self, serializer):
-        ticket = serializer.save(submitted_by=self.request.user)
+        claims = get_request_claims(self.request)
+        tenant_kind = claims.get('tenant_kind') or 'user'
+        tenant_id = claims.get('tenant_id') or str(self.request.user.pk)
+        ticket = serializer.save(
+            submitted_by=self.request.user,
+            tenant_kind=tenant_kind,
+            tenant_id=str(tenant_id),
+        )
         
         # Log ticket creation activity
         ActivityLog.objects.create(
@@ -133,17 +140,17 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        # Admins can see all tickets
+        qs = self.queryset
+        if not wants_all_tenants(self.request):
+            qs = qs.filter(tenant_scope_or_legacy_q(self.request))
         if user.is_staff and user.user_type == User.Types.ADMIN:
-            return self.queryset
-        # Support agents can see tickets assigned to them OR created by them
-        elif user.is_staff and user.user_type == User.Types.SUPPORT_AGENT:
-            return self.queryset.filter(
-                models.Q(assigned_to=user) | 
+            return qs
+        if user.is_staff and user.user_type == User.Types.SUPPORT_AGENT:
+            return qs.filter(
+                models.Q(assigned_to=user) |
                 models.Q(submitted_by=user)
             )
-        # Regular users (partners) can see only their own tickets
-        return self.queryset.filter(submitted_by=user)
+        return qs.filter(submitted_by=user)
 
 
 
@@ -437,19 +444,18 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        
-        # Admins can see all comments
+        qs = self.queryset
+        if not wants_all_tenants(self.request):
+            qs = qs.filter(tenant_scope_or_legacy_q(self.request, prefix='ticket'))
         if user.is_staff and user.user_type == User.Types.ADMIN:
-            return self.queryset
-        # Support agents can only see comments on tickets assigned to them
-        elif user.is_staff and user.user_type == User.Types.SUPPORT_AGENT:
-            return self.queryset.filter(
-                models.Q(ticket__assigned_to=user) | 
+            return qs
+        if user.is_staff and user.user_type == User.Types.SUPPORT_AGENT:
+            return qs.filter(
+                models.Q(ticket__assigned_to=user) |
                 models.Q(ticket__assigned_to__isnull=True) |
                 models.Q(author=user)
             )
-        # Regular users can see comments on their own tickets
-        return self.queryset.filter(ticket__submitted_by=user)
+        return qs.filter(ticket__submitted_by=user)
 
 
     def perform_create(self, serializer):
@@ -458,16 +464,17 @@ class CommentViewSet(viewsets.ModelViewSet):
         # Check if user has permission to comment on this ticket
         user = self.request.user
         if user.is_staff and user.user_type == User.Types.ADMIN:
-            # Admin can comment on any ticket
             pass
         elif user.is_staff and user.user_type == User.Types.SUPPORT_AGENT:
-            # Support agent can only comment on assigned tickets or unassigned tickets
             ticket = SupportTicket.objects.get(id=ticket_id)
+            if not row_matches_request_tenant(ticket, self.request):
+                raise permissions.PermissionDenied("Ticket is not in your current tenant context.")
             if ticket.assigned_to != user and ticket.assigned_to is not None:
                 raise permissions.PermissionDenied("You can only comment on tickets assigned to you or unassigned tickets.")
         else:
-            # Regular users can only comment on their own tickets
             ticket = SupportTicket.objects.get(id=ticket_id)
+            if not row_matches_request_tenant(ticket, self.request):
+                raise permissions.PermissionDenied("Ticket is not in your current tenant context.")
             if ticket.submitted_by != user:
                 raise permissions.PermissionDenied("You can only comment on your own tickets.")
                 

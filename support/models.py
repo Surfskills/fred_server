@@ -1,6 +1,7 @@
 from django.db import models
 
 from authentication.models import User
+from tenancy.tenant_scope import TENANT_KIND_CHOICES
 
 
 
@@ -46,6 +47,21 @@ class SupportTicket(models.Model):
     affected_customers = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tickets')
+    tenant_kind = models.CharField(
+        max_length=20,
+        choices=TENANT_KIND_CHOICES,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="JWT tenant_kind when this ticket was created.",
+    )
+    tenant_id = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Stable tenant id when the ticket was created.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

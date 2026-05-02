@@ -1,6 +1,12 @@
 """
 Optional call-out to gigs-hub-ai-engine-api after a BaseService is created.
-Configure: GIGSHUB_AI_ENGINE_URL (e.g. http://127.0.0.1:8001), GIGSHUB_AI_API_KEY.
+
+Configure:
+  - GIGSHUB_AI_ENGINE_URL — base URL (no trailing slash), e.g. https://gigs-hub-ai-engine-api.onrender.com
+  - GIGSHUB_AI_API_KEY — must match the AI engine's GIGSHUB_API_KEY
+
+On Render (RENDER env set), if URL is unset or still points at localhost, the public
+deployed AI engine URL is used so production never calls 127.0.0.1:8001 by mistake.
 """
 from __future__ import annotations
 
@@ -15,15 +21,40 @@ from tenancy.services import get_recruited_freelancer_ids
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_PUBLIC_AI_ENGINE_URL = "https://gigs-hub-ai-engine-api.onrender.com"
+
+
+def _resolved_engine_base() -> str:
+    """Effective AI engine base URL for outbound HTTP from this service."""
+    raw = (os.environ.get("GIGSHUB_AI_ENGINE_URL") or "").strip().rstrip("/")
+    on_render = bool(os.environ.get("RENDER"))
+
+    if raw:
+        if on_render and (
+            "127.0.0.1" in raw
+            or "localhost" in raw.lower()
+        ):
+            logger.warning(
+                "GIGSHUB_AI_ENGINE_URL points at localhost on Render; using %s",
+                _DEFAULT_PUBLIC_AI_ENGINE_URL,
+            )
+            return _DEFAULT_PUBLIC_AI_ENGINE_URL.rstrip("/")
+        return raw
+
+    if on_render:
+        return _DEFAULT_PUBLIC_AI_ENGINE_URL.rstrip("/")
+
+    return ""
+
 
 def ai_engine_configured() -> bool:
-    base = (os.environ.get("GIGSHUB_AI_ENGINE_URL") or "").strip()
+    base = _resolved_engine_base()
     key = (os.environ.get("GIGSHUB_AI_API_KEY") or "").strip()
     return bool(base and key)
 
 
 def _engine_base_and_key() -> tuple[str, str] | None:
-    base = (os.environ.get("GIGSHUB_AI_ENGINE_URL") or "").rstrip("/")
+    base = _resolved_engine_base()
     key = os.environ.get("GIGSHUB_AI_API_KEY", "")
     if not base or not key:
         return None

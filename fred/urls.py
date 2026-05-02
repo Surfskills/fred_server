@@ -20,6 +20,10 @@ from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
+admin.site.site_header = "Gigs Hub Administration"
+admin.site.site_title = "Gigs Hub Admin"
+admin.site.index_title = "Platform control center"
+
 schema_view = get_schema_view(
     openapi.Info(
         title="Gigs Hub API",

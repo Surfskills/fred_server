@@ -1,0 +1,30 @@
+{% extends "admin/base.html" %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    :root { --gh-bg:#f5f7fb; --gh-surface:#fff; --gh-border:#dbe3ef; --gh-text:#0f172a; --gh-primary:#1d4ed8; --gh-primary-strong:#1e40af; --gh-danger:#b91c1c; }
+    body,#container { background:var(--gh-bg); color:var(--gh-text); }
+    #header { background:linear-gradient(90deg,#0f172a 0%,#1e3a8a 55%,#1d4ed8 100%); color:#fff; box-shadow:0 4px 14px rgba(15,23,42,.3); }
+    #header a:link,#header a:visited,#site-name a { color:#fff; }
+    #site-name { font-weight:700; letter-spacing:.2px; }
+    #user-tools { font-size:12px; }
+    div.breadcrumbs { background:#e8eef8; border-bottom:1px solid var(--gh-border); color:#1e3a8a; }
+    div.breadcrumbs a { color:#1e40af; }
+    #content { padding:22px 24px; }
+    .module,.inline-group,#changelist-filter,#changelist .paginator,fieldset,.submit-row { border:1px solid var(--gh-border); border-radius:12px; background:var(--gh-surface); box-shadow:0 1px 3px rgba(15,23,42,.08); }
+    .module h2,.module caption,.inline-group h2 { background:#eef3fb; color:#1e293b; border-bottom:1px solid var(--gh-border); }
+    table#result_list thead th { background:#eef3fb; }
+    table#result_list tr:hover td,table#result_list tr:hover th { background:#f8fbff; }
+    input,textarea,select,.vTextField,.vURLField,.vIntegerField,.vLargeTextField { border-radius:8px !important; border:1px solid #c5d1e2 !important; }
+    input:focus,textarea:focus,select:focus { border-color:var(--gh-primary) !important; box-shadow:0 0 0 3px rgba(29,78,216,.18) !important; outline:none; }
+    .button,input[type="submit"],input[type="button"],.submit-row input,a.button { border-radius:8px; border:0; background:var(--gh-primary); color:#fff; }
+    .button:hover,input[type="submit"]:hover,input[type="button"]:hover,.submit-row input:hover,a.button:hover { background:var(--gh-primary-strong); }
+    .button.default,input.default { background:#0f766e; }
+    .gh-quick-links { margin-bottom:18px; padding:16px; }
+    .gh-quick-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin-top:10px; }
+    .gh-quick-grid .button { display:inline-flex; align-items:center; justify-content:center; text-align:center; text-decoration:none; min-height:36px; }
+    .deletelink { color:var(--gh-danger) !important; }
+    @media (max-width:1024px){ #content { padding:16px; } }
+  </style>
+{% endblock %}

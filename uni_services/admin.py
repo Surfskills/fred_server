@@ -205,6 +205,21 @@ def mark_as_cancelled(modeladmin, request, queryset):
     messages.success(request, f'{updated} orders cancelled')
 mark_as_cancelled.short_description = "Cancel orders"
 
+def mark_as_in_progress(modeladmin, request, queryset):
+    updated = queryset.filter(status__in=['assigned', 'start_working', 'on_hold']).update(status='in_progress')
+    messages.success(request, f'{updated} orders moved to in progress')
+mark_as_in_progress.short_description = "Move selected orders to in progress"
+
+def mark_as_on_hold(modeladmin, request, queryset):
+    updated = queryset.exclude(status__in=['completed', 'cancelled']).update(status='on_hold')
+    messages.success(request, f'{updated} orders moved on hold')
+mark_as_on_hold.short_description = "Move selected orders on hold"
+
+def mark_as_proceed_to_pay(modeladmin, request, queryset):
+    updated = queryset.filter(status='completed').update(status='proceed_to_pay')
+    messages.success(request, f'{updated} completed orders moved to proceed to pay')
+mark_as_proceed_to_pay.short_description = "Move completed orders to proceed to pay"
+
 
 # # Main Admin Classes
 # @admin.register(Freelancer)
@@ -269,10 +284,21 @@ class BaseServiceAdmin(admin.ModelAdmin):
     )
     list_filter = (
         StatusFilter, PaymentStatusFilter, CategoryFilter, 
-        AssignmentFilter, 'priority', 'created_at', 'deadline'
+        AssignmentFilter, 'priority', 'posting_tenant_kind', 'created_at', 'deadline'
     )
-    search_fields = ('id', 'title', 'description', 'user__email', 'assigned_to__name')
+    search_fields = (
+        'id',
+        'title',
+        'description',
+        'user__email',
+        'assigned_to__display_name',
+        'assigned_to__user__email',
+    )
     list_editable = ('priority',) 
+    list_select_related = ('user', 'assigned_to', 'assigned_to__user')
+    date_hierarchy = 'created_at'
+    list_per_page = 40
+    save_on_top = True
     readonly_fields = (
         'id', 'created_at', 'updated_at', 'assigned_at', 'started_at', 
         'completed_at', 'client_id', 'is_overdue', 'time_remaining_display'
@@ -302,7 +328,15 @@ class BaseServiceAdmin(admin.ModelAdmin):
     )
     
     inlines = [ServiceFileInline, OrderStatusHistoryInline, OrderCommentInline, BidInline]
-    actions = [export_orders_to_csv, assign_to_freelancer, mark_as_completed, mark_as_cancelled]
+    actions = [
+        export_orders_to_csv,
+        assign_to_freelancer,
+        mark_as_in_progress,
+        mark_as_on_hold,
+        mark_as_completed,
+        mark_as_proceed_to_pay,
+        mark_as_cancelled,
+    ]
     
     def get_urls(self):
         urls = super().get_urls()
@@ -643,8 +677,3 @@ class ProjectWorkspaceInviteAdmin(admin.ModelAdmin):
     search_fields = ('workspace__project__id', 'freelancer__user__email')
     raw_id_fields = ('workspace', 'freelancer', 'invited_by')
 
-
-# Custom admin site configuration
-admin.site.site_header = "Service Management Admin"
-admin.site.site_title = "Service Admin"
-admin.site.index_title = "Welcome to Service Management Administration"

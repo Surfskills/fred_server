@@ -163,6 +163,11 @@ class FreelancerAdmin(admin.ModelAdmin):
         'mark_as_available',
         'mark_as_unavailable',
     ]
+    list_select_related = ['user']
+    date_hierarchy = 'created_at'
+    list_per_page = 40
+    autocomplete_fields = ['user']
+    save_on_top = True
     
     def user_email(self, obj):
         return obj.user.email
